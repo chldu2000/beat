@@ -1,8 +1,9 @@
-"""Render guitar, bass and organ audition clips with the new engines and the old placeholder ones.
+"""Render guitar, bass, organ and drum audition clips with the new engines and the old placeholder ones.
 
-    uv run python scripts/audition.py [out/audition]
+    uv run python scripts/audition.py [out/audition] [name filter]
 
-Each clip is written twice, `NN_name.new.wav` and `NN_name.old.wav`, plus the demo song.
+Each clip is written twice, `NN_name.new.wav` and `NN_name.old.wav`, plus the demo song. With a filter,
+only clips whose name contains it are rendered (e.g. `tom` or `demo`).
 """
 
 import sys
@@ -15,10 +16,11 @@ from beat.render import render, write_wav
 from beat.song import load_song
 
 # instrument type -> (new engine, old engine)
-ENGINES = {"guitar": ("waveguide", "ks"), "bass": ("waveguide", "ks"), "organ": ("tonewheel", "drawbar")}
+ENGINES = {"guitar": ("waveguide", "ks"), "bass": ("waveguide", "ks"), "organ": ("tonewheel", "drawbar"),
+           "drums": ("modal", "kit")}
 
-# (name, guitar tone, "bass" or "organ:<registration>", bars of notes, what to listen for). For the organ,
-# `notes` may be a list of (leslie speed, notes) sections.
+# (name, guitar tone, "bass", "organ:<registration>" or "drums", bars of notes, what to listen for). For the
+# organ, `notes` may be a list of (leslie speed, notes) sections; for drums it is `hits` lines.
 CLIPS = [
     ("single_clean", "clean", "E2:1 | A3:1 | E4:1 | E5:1",
      "Single notes, clean: attack, tuning, how the sustain darkens as it decays."),
@@ -61,6 +63,49 @@ CLIPS = [
      "The same chord at p, mf, ff: the expression pedal makes it louder and dirtier."),
     ("organ_soft", "organ:soft", "[C4 E4 G4]:1 | [A3 C4 E4]:1 | [F3 A3 C4]:1 | [G3 B3 D4]:1",
      "Soft registration for ballads: mellow, almost clean."),
+    ("tom_singles", "drums",
+     ["t1: 1 2!ghost 3!acc | | |", "t2: | 1 2!ghost 3!acc | |", "t3: | | 1 2!ghost 3!acc | 1"],
+     "Each tom at mf, ghost and accent, then the floor tom left to ring: pitch glide on hard hits, decay."),
+    ("tom_fill", "drums",
+     ["hh: 1 1.5 2 2.5 3 3.5 4 4.5 | |", "bd: 1 3 | | 1", "sd: 2 4 | 1 1.25 1.5 1.75 |",
+      "t1: | 2 2.25 2.5 2.75 |", "t2: | 3 3.25 3.5 3.75 |", "t3: | 4 4.25 4.5 4.75!acc |", "cr: | | 1!acc"],
+     "A groove bar, a sixteenth-note fill down the toms, a crash: toms within the kit."),
+    ("tom_rolls", "drums",
+     ["t2: 1!flam 2!flam 3!flam 4!flam | |",
+      "t3: | 1!ghost 1.125!ghost 1.25!ghost 1.375 1.5 1.625 1.75 1.875 2 2.125 2.25 2.375 2.5 2.625 2.75 2.875"
+      " 3 3.125 3.25 3.375 3.5!acc 3.625!acc 3.75!acc 3.875!acc 4!acc | 1!acc"],
+     "Flams, then a 32nd-note crescendo on the floor tom: each stroke lands on the ringing head."),
+    ("tom_groove", "drums",
+     ["t3: 1!acc 1.5 2 2.5!acc 3 3.5 4!acc 4.5 | 1!acc 1.5 2 2.5!acc 3 3.5 4!acc 4.5",
+      "bd: 1 2.5 3 | 1 2.5 3", "t2: 4.75 | 4.25 4.5 4.75", "ss: 2 4 | 2 4"],
+     "A floor-tom groove with side stick: steady eighths shouldn't sound like a machine gun."),
+    ("kick_singles", "drums", ["bd: 1!ghost 2 3!acc | 1 | 1!acc |"],
+     "Bass drum soft, medium, accented, then left to ring: low end, beater attack, pitch drop on hard hits."),
+    ("kick_rock", "drums",
+     ["hh: 1 1.5 2 2.5 3 3.5 4 4.5 | 1 1.5 2 2.5 3 3.5 4 4.5", "sd: 2 4 | 2 4", "bd: 1 2.5 3 | 1 1.75 2.5 3 3.75"],
+     "A rock beat with sixteenth-note doubles: punch, and whether the kick sits under the snare."),
+    ("kick_doubles", "drums", ["bd: 1 1.25 1.5 1.75 2 2.25 2.5 2.75 3 3.25 3.5 3.75 4 4.25 4.5 4.75 | 1 1.25 1.5 1.75 2 2.25 2.5 2.75 3 3.25 3.5 3.75 4 4.25 4.5 4.75", "cr: 1!acc | 1!acc"],
+     "Sixteenth-note double bass: each stroke lands on the moving head; it should stay defined, not smear."),
+    ("snare_singles", "drums", ["sd: 1!ghost 2 3!acc | 1!ghost 1.5!ghost 2 3!acc |"],
+     "Snare ghost, normal, accent, then left to ring: how much the wires buzz at each level, the tail."),
+    ("snare_groove", "drums",
+     ["hh: 1 1.5 2 2.5 3 3.5 4 4.5 | 1 1.5 2 2.5 3 3.5 4 4.5",
+      "sd: 1.75!ghost 2!acc 2.5!ghost 3.25!ghost 4!acc 4.75!ghost | 1.75!ghost 2!acc 2.75!ghost 3.5!ghost 4!acc",
+      "bd: 1 2.25 3 3.5 | 1 2.5 3.75"],
+     "A funk groove with ghost notes: ghosts quiet but still with some wire, backbeats cracking."),
+    ("snare_roll", "drums", ["sd: 1!flam 2!flam 3!flam 4!flam | 1!ghost 1.125!ghost 1.25!ghost 1.375!ghost 1.5!ghost 1.625!ghost 1.75!ghost 1.875!ghost 2 2.125 2.25 2.375 2.5 2.625 2.75 2.875 3 3.125 3.25 3.375 3.5 3.625 3.75 3.875 4!acc 4.125!acc 4.25!acc 4.375!acc 4.5!acc 4.625!acc 4.75!acc 4.875!acc | 1!acc", "cr: | | 1!acc", "bd: | | 1"],
+     "Flams, then a 32nd-note roll from ghost to accent: the wires keep buzzing through the roll."),
+    ("snare_backbeat", "drums",
+     ["hh: 1 1.5 2 2.5 3 3.5 4 4.5 | 1 1.5 2 2.5 3 3.5 4 4.5", "sd: 2 4 | 2 4 4.75", "bd: 1 2.5 3 | 1 2.5 3"],
+     "A plain rock beat: the snare's crack and body against the kick."),
+    ("kit_sympathy", "drums",
+     ["bd: 1 2.5 3 | 1 2.5 3 |", "t1: | 1 2 | 1!acc", "t2: | 3 | 2!acc", "t3: | 4 4.5 | 3!acc 4!acc"],
+     "No snare is played: the snare wires should buzz along with the kick and toms, the toms ring along."),
+    ("kit_room", "drums",
+     ["hh: 1 1.5 2 2.5 3 3.5 4 4.5 | 1 1.5 2 2.5 3 3.5 4 4.5 | |",
+      "sd: 2 4 | 2 4 | 1 1.25 1.5 1.75 |", "bd: 1 2.5 3 | 1 2.5 3 | | 1",
+      "t1: | | 2 2.25 2.5 2.75 |", "t2: | | 3 3.25 |", "t3: | | 3.5 3.75 4 4.5!acc |", "cr: 1!acc | | | 1!acc"],
+     "The kit in its room: overheads (the kit spread left to right) and the room tail after the last crash."),
 ]
 
 TEMPLATE = """beat: 0.1
@@ -74,6 +119,11 @@ form: [{form}]
 
 
 def clip_song(name: str, kind: str, notes) -> str:
+    if kind == "drums":
+        lines = "\\n".join(notes)
+        bars = notes[0].count("|") + 1
+        return TEMPLATE.format(name=name, pid="dr", spec="type: drums", form="s0",
+                               sections=f"  s0:\n    bars: {bars}\n    parts:\n      dr: {{ hits: \"{lines}\" }}")
     if kind == "bass":
         pid, spec = "bs", "type: bass"
     elif kind.startswith("organ:"):
@@ -98,12 +148,25 @@ def render_both(song, compiled, path: Path, parts=None) -> None:
         write_wav(path.with_suffix(f".{suffix}.wav"), render(compiled, parts))
 
 
+DEMOS = [  # (name, instrument type or None for the whole band, what it is)
+    ("90_demo_guitars", "guitar", "both demo guitar parts without the band."),
+    ("91_demo_bass", "bass", "the demo bass part alone."),
+    ("92_demo_full", None, "the whole demo."),
+    ("93_demo_organ", "organ", "the demo organ part alone."),
+    ("94_demo_drums", "drums", "the demo drum part alone."),
+]
+
+
 def main() -> int:
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "out/audition")
+    only = sys.argv[2] if len(sys.argv) > 2 else ""
     out.mkdir(parents=True, exist_ok=True)
-    notes_md = ["# Guitar, bass and organ audition", "",
-                "Each clip: `.new.wav` (waveguide / tonewheel) and `.old.wav` (Karplus-Strong / old drawbar).", ""]
+    notes_md = ["# Guitar, bass, organ and drum audition", "",
+                "Each clip: `.new.wav` (waveguide / tonewheel / modal toms) and `.old.wav` "
+                "(Karplus-Strong / old drawbar / old kit).", ""]
     for i, (name, tone, notes, listen) in enumerate(CLIPS, 1):
+        if only not in name:
+            continue
         text = clip_song(name, tone, notes)
         diags = Diagnostics()
         song = load_song(text, diags)
@@ -116,13 +179,15 @@ def main() -> int:
         print(f"{i:02d}_{name}")
 
     _, song, compiled = _load("examples/demo.beat.yaml")
-    for name, itype in (("90_demo_guitars", "guitar"), ("91_demo_bass", "bass"), ("93_demo_organ", "organ")):
-        render_both(song, compiled, out / name, [p for p, i in song.instruments.items() if i.type == itype])
-    render_both(song, compiled, out / "92_demo_full")
-    notes_md += ["90. **demo_guitars**: both demo guitar parts without the band.",
-                 "91. **demo_bass**: the demo bass part alone.", "92. **demo_full**: the whole demo.",
-                 "93. **demo_organ**: the demo organ part alone."]
-    (out / "README.md").write_text("\n".join(notes_md) + "\n")
+    for name, itype, what in DEMOS:
+        if only not in name:
+            continue
+        parts = [p for p, i in song.instruments.items() if i.type == itype] if itype else None
+        render_both(song, compiled, out / name, parts)
+        notes_md.append(f"{name[:2]}. **{name[3:]}**: {what}")
+        print(name)
+    if not only:
+        (out / "README.md").write_text("\n".join(notes_md) + "\n")
     print(f"wrote {out}")
     return 0
 

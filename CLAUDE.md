@@ -25,8 +25,11 @@ bass share the plucked-string model: `fretboard.py` (string assignment) → `wav
 loop) → `plucked.py`; `guitar.py` / `bass.py` hold each instrument's `StringModel` and amp chain
 (`amp.py`, `cab.py`). The organ: `registration.py` (presets and `model:` keys, no numba) → `organ.py`
 (tonewheels, key contacts, percussion, scanner, preamp) → `leslie.py` (rotary speaker, stereo); its
-Leslie speed reaches the engine as section `controls`. `scripts/audition.py` renders new-vs-old
-listening clips.
+Leslie speed reaches the engine as section `controls`. Drums: `drums.py` (subtractive kit; the default
+`modal` engine swaps in `membrane.py` for the bass drum, snare and toms: two-head modal drum with an
+implicit beater contact, an optional port and snare wires, numba; the drums hear each other's radiated
+pressure, and overheads plus `room.py`, an FDN reverb, hear the whole kit).
+`scripts/audition.py` renders new-vs-old listening clips.
 
 Diagnostics must name a location (`section > part > bar N, beat B`) and say what to change: the
 composer agent fixes songs from these messages alone.

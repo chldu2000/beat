@@ -1,4 +1,10 @@
-"""Drum kit by subtractive synthesis. Each lane gets a few round-robin variants rendered up front."""
+"""Drum kit by subtractive synthesis. Each lane gets a few round-robin variants rendered up front.
+
+The default `modal` engine plays the bass drum, snare and toms with the two-head membrane model
+(`membrane.py`) and the other lanes as before, and puts the kit in a room: the membrane drums hear each
+other (a kick or tom hit makes the snare wires buzz and the other toms ring), a pair of overheads
+hears every drum from its place in the kit, and a room reverb hears them all.
+"""
 
 import numpy as np
 from scipy.signal import butter, sosfilt
@@ -99,8 +105,28 @@ _VOICES = {
 }
 
 
-def render_kit(events: list[Event], n: int, sr: int, rng: np.random.Generator) -> np.ndarray:
-    """Render all drum events of one part into a stereo (n, 2) buffer."""
+def _hits(ev: Event) -> list[tuple[float, float]]:
+    """(time, velocity) of the strokes of one event; a flam adds a soft grace stroke before it."""
+    hits = [(ev.time, ev.velocity)]
+    if ev.arts.get("flam"):
+        hits.append((ev.time - 0.025, ev.velocity * 0.5))
+    return hits
+
+
+def _place(out: np.ndarray, y: np.ndarray, lane: str, start: int = 0, lanes: dict | None = None) -> None:
+    """Add `y` at `start` with the lane's gain and pan; also to the lane's mono signal in `lanes`."""
+    gain, pan = LANE_MIX[lane]
+    seg = y[: max(0, len(out) - start)] * gain
+    left, right = np.cos((pan + 1) * np.pi / 4), np.sin((pan + 1) * np.pi / 4)
+    out[start:start + len(seg), 0] += seg * left
+    out[start:start + len(seg), 1] += seg * right
+    if lanes is not None:
+        lanes.setdefault(lane, np.zeros(len(out)))[start:start + len(seg)] += seg
+
+
+def render_kit(events: list[Event], n: int, sr: int, rng: np.random.Generator,
+               lanes: dict | None = None) -> np.ndarray:
+    """Render all drum events of one part into a stereo (n, 2) buffer (and each lane's mono signal into `lanes`)."""
     out = np.zeros((n, 2))
     cache: dict[str, list[np.ndarray]] = {}
     chokers = sorted(ev.time for ev in events if ev.lane in ("hh", "hp", "ho"))
@@ -109,10 +135,7 @@ def render_kit(events: list[Event], n: int, sr: int, rng: np.random.Generator) -
         if ev.lane not in cache:
             voices = [_VOICES[ev.lane](sr, rng) for _ in range(ROUND_ROBIN)]
             cache[ev.lane] = [v / (np.max(np.abs(v)) + 1e-9) for v in voices]
-        hits = [(ev.time, ev.velocity)]
-        if ev.arts.get("flam"):
-            hits.append((ev.time - 0.025, ev.velocity * 0.5))
-        for time, vel in hits:
+        for time, vel in _hits(ev):
             sample = cache[ev.lane][rng.integers(ROUND_ROBIN)].copy()
             if ev.lane == "ho":
                 # An open hi-hat rings until the next closed hit or pedal chokes it.
@@ -121,14 +144,68 @@ def render_kit(events: list[Event], n: int, sr: int, rng: np.random.Generator) -
                     k = int((nxt - time) * sr)
                     if k < len(sample):
                         sample[k:] *= np.exp(-np.arange(len(sample) - k) / (0.008 * sr))
-            gain, pan = LANE_MIX[ev.lane]
-            start = int(max(0.0, time) * sr)
-            seg = sample[: max(0, n - start)] * gain * vel ** 1.4
-            left, right = np.cos((pan + 1) * np.pi / 4), np.sin((pan + 1) * np.pi / 4)
-            out[start:start + len(seg), 0] += seg * left
-            out[start:start + len(seg), 1] += seg * right
+            _place(out, sample * vel ** 1.4, ev.lane, int(max(0.0, time) * sr), lanes)
     return out
 
 
 def render_part(inst: Instrument, events: list[Event], n: int, sr: int, rng: np.random.Generator) -> np.ndarray:
     return render_kit(events, n, sr, rng)
+
+
+def render_modal(inst: Instrument, events: list[Event], n: int, sr: int, rng: np.random.Generator) -> np.ndarray:
+    from . import room
+    from .membrane import DRUMS, Drum
+
+    close: dict[str, np.ndarray] = {}
+    out = render_kit([ev for ev in events if ev.lane not in DRUMS], n, sr, rng, close)
+    far = dict(close)
+    radiated: dict[str, np.ndarray] = {}  # rate of change of each drum's volume velocity
+    for lane in COUPLING_ORDER:
+        hits = [h for ev in events if ev.lane == lane for h in _hits(ev)]
+        ext = sum((_arrive(radiated[k], lane, k, sr) for k in radiated), np.zeros(n))
+        times, vels = zip(*hits) if hits else ((), ())
+        y_close, y_far, radiated[lane] = Drum(DRUMS[lane], sr, rng).render(times, vels, n, rng, ext)
+        _place(out, y_close, lane, 0, close)
+        far[lane] = y_far * LANE_MIX[lane][0]
+
+    for side, mic in enumerate(OVERHEADS):
+        for lane, y in far.items():
+            r = _dist(KIT[lane], mic)
+            out[:, side] += OVERHEAD_GAIN * _delay(y, r, sr) * REF_M / r
+    out += ROOM_GAIN * room.reverb(sum(far.values()), sr, rt60=ROOM_RT60)
+    return out
+
+
+# Where things are, in metres: x from the audience's left to right (as the pans), y away from the
+# audience, z up. The lanes of one piece share its place.
+KIT = {
+    "bd": (0.0, 0.0, 0.3), "sd": (0.05, 0.4, 0.65), "ss": (0.05, 0.4, 0.65),
+    "hh": (0.4, 0.45, 0.9), "ho": (0.4, 0.45, 0.9), "hp": (0.4, 0.45, 0.9),
+    "t1": (0.15, 0.2, 0.8), "t2": (-0.15, 0.2, 0.8), "t3": (-0.45, 0.45, 0.55),
+    "cr": (0.5, 0.1, 1.2), "cr2": (-0.4, 0.05, 1.25), "rd": (-0.55, 0.25, 1.05),
+    "rb": (-0.55, 0.25, 1.05), "ch": (-0.65, 0.1, 1.2),
+}
+OVERHEADS = [(-0.45, 0.3, 1.7), (0.45, 0.3, 1.7)]  # spaced pair, left and right
+OVERHEAD_GAIN = 0.5  # against the close mics, for a source REF_M away
+REF_M = 1.0
+ROOM_GAIN = 0.25
+ROOM_RT60 = 0.6
+SPEED_OF_SOUND = 343.0
+RHO = 1.2
+# Each membrane drum hears the ones rendered before it: the snare last, so everything sets its wires off.
+COUPLING_ORDER = ["bd", "t3", "t2", "t1", "sd"]
+
+
+def _dist(a, b) -> float:
+    return float(np.sqrt(sum((x - y) ** 2 for x, y in zip(a, b))))
+
+
+def _delay(y: np.ndarray, r: float, sr: int) -> np.ndarray:
+    k = int(round(r / SPEED_OF_SOUND * sr))
+    return np.concatenate([np.zeros(k), y[: len(y) - k]]) if k else y
+
+
+def _arrive(dvol: np.ndarray, at: str, src: str, sr: int) -> np.ndarray:
+    """Sound pressure (Pa) at drum `at` radiated by drum `src` as a monopole."""
+    r = _dist(KIT[at], KIT[src])
+    return _delay(dvol, r, sr) * RHO / (4 * np.pi * r)
