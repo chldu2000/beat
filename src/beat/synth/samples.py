@@ -23,16 +23,19 @@ SAMPLES_DIR = Path(os.environ.get("BEAT_SAMPLES", Path(__file__).resolve().paren
 KIT = "DRSKit"
 CREDIT = "Cymbals: DRSKit by DrumGizmo (drumgizmo.org), CC BY 4.0"
 
-# lane -> (instrument, mic). The crashes are heard from the overhead on their side.
+# lane -> (instrument, mic). The cymbals are heard from the overhead on their side: the ride's close mic
+# brings out its pitched partials, which pile up into a whistle on eighth notes.
 LANES = {
     "hh": ("Hihat_closed", "Hihat"), "ho": ("Hihat_open", "Hihat"), "hp": ("Hihat_foot", "Hihat"),
     "cr": ("Crash_left_shank", "OHL"), "cr2": ("Crash_right_shank", "OHR"),
-    "rd": ("Ride_tip", "Ride"), "rb": ("Ride_tip_bell", "Ride"),
+    "rd": ("Ride_tip", "OHR"), "rb": ("Ride_tip_bell", "OHR"),
 }
 ACCENT = {"hh": "Hihat_closed_shank"}  # accented closed hi-hat: the shank on the edge
-# lane -> (RMS, over seconds) of a full-force hit: the synthesized kit's, so the mix balance stays
+# lane -> (RMS, over seconds) of a full-force hit: the synthesized kit's, so the mix balance stays. The
+# ride is 3 dB under it: from the overhead its stick tick is ~12 dB hotter than the ring, and would set the
+# drum part's peak.
 LEVEL = {"hh": (0.17, 0.1), "ho": (0.21, 0.5), "hp": (0.14, 0.1), "cr": (0.21, 1.0), "cr2": (0.21, 1.0),
-         "rd": (0.22, 0.5), "rb": (0.27, 0.5)}
+         "rd": (0.16, 0.5), "rb": (0.19, 0.5)}
 DYNAMICS = 2.8  # power ~ velocity^DYNAMICS (the synthesized kit's amplitude goes as velocity^1.4)
 CHOICES = 3  # pick among this many hits nearest in power, avoiding the one played last
 
