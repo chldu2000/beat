@@ -8,3 +8,5 @@ out/
 evals/results/**/transcript.jsonl
 evals/results/**/beatlog/
 evals/results/**/stderr.txt
+samples/
+DRSKit*.zip

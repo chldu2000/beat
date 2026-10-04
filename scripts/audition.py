@@ -106,6 +106,11 @@ CLIPS = [
       "sd: 2 4 | 2 4 | 1 1.25 1.5 1.75 |", "bd: 1 2.5 3 | 1 2.5 3 | | 1",
       "t1: | | 2 2.25 2.5 2.75 |", "t2: | | 3 3.25 |", "t3: | | 3.5 3.75 4 4.5!acc |", "cr: 1!acc | | | 1!acc"],
      "The kit in its room: overheads (the kit spread left to right) and the room tail after the last crash."),
+    ("cymbals", "drums",
+     ["hh: 1 1.5!acc 2 2.5!acc 3 3.5!acc 4 | 1 1.5 2 2.5 3 3.5 | |",
+      "ho: 4.5 | 4 | |", "hp: | 1 2 3 4 | |", "rd: | | 1 1.5 2 3 3.5 4 | 1 2 3",
+      "rb: | | 2.5 4.5 | ", "cr: 1!acc | | | 4!acc", "cr2: | | 1!acc |", "sd: 2 4 | 2 4 | 2 4 | 2", "bd: 1 3 | 1 3 | 1 3 | 1"],
+     "Sampled hi-hat (accents on the shank, open and choked, pedal), ride with bell, both crashes."),
 ]
 
 TEMPLATE = """beat: 0.1

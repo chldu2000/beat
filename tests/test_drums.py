@@ -2,10 +2,11 @@ import dataclasses
 from fractions import Fraction
 
 import numpy as np
+import pytest
 from scipy.signal import butter, oaconvolve, sosfiltfilt
 
 from beat.compile import Event
-from beat.synth import drums, membrane, room
+from beat.synth import drums, membrane, room, samples
 
 SR = 44100
 FLOOR = membrane.TOMS["t3"]
@@ -92,7 +93,7 @@ def test_a_new_hit_lands_on_the_ringing_head():
 
 
 def test_modal_engine_keeps_the_other_lanes_and_adds_the_room():
-    events = [ev("ss", 0.0), ev("hh", 0.25), ev("cr", 0.5)]
+    events = [ev("ss", 0.0), ev("ss", 0.25), ev("ss", 0.5)]  # side stick stays synthesized
     n = SR
     kit = drums.render_part(None, events, n, SR, np.random.default_rng(3))
     modal = drums.render_modal(None, events, n, SR, np.random.default_rng(3))
@@ -140,3 +141,31 @@ def test_snare_wires_rest_quietly_and_damp_the_head():
     y_bare, _ = hit(bare, 0.6)
     assert np.isfinite(y_wired).all()
     assert rms(y_wired, 0.3, 0.6) < 0.7 * rms(y_bare, 0.3, 0.6)
+
+
+needs_kit = pytest.mark.skipif(not samples.available(), reason="sampled kit not in samples/DRSKit")
+
+
+@needs_kit
+def test_sampled_hits_follow_the_velocity():
+    lane = samples.Lane("hh", SR)
+    peaks = [np.abs(lane.hit(v, False, np.random.default_rng(0))).max() for v in (0.2, 0.5, 0.8, 1.0)]
+    assert all(a < b for a, b in zip(peaks, peaks[1:]))
+    assert 0.05 < peaks[0] / peaks[-1] < 0.2  # about the synthesized kit's 0.2^1.4
+
+
+@needs_kit
+def test_sampled_hits_do_not_repeat_back_to_back():
+    lane = samples.Lane("rd", SR)
+    rng = np.random.default_rng(0)
+    hits = [lane.hit(0.6, False, rng) for _ in range(8)]
+    assert all(not np.array_equal(a, b) for a, b in zip(hits, hits[1:]))
+
+
+@needs_kit
+def test_modal_engine_plays_cymbals_from_samples_and_chokes_the_open_hat():
+    n = 2 * SR
+    open_hat = drums.render_modal(None, [ev("ho", 0.0)], n, SR, np.random.default_rng(0))
+    choked = drums.render_modal(None, [ev("ho", 0.0), ev("hp", 0.5, v=0.01)], n, SR, np.random.default_rng(0))
+    assert rms(open_hat[:, 0], 0.8, 1.2) > 0.05 * rms(open_hat[:, 0], 0.0, 0.4)  # an open hat rings on
+    assert rms(choked[:, 0], 0.8, 1.2) < 0.3 * rms(open_hat[:, 0], 0.8, 1.2)

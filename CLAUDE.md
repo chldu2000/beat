@@ -28,7 +28,8 @@ loop) → `plucked.py`; `guitar.py` / `bass.py` hold each instrument's `StringMo
 Leslie speed reaches the engine as section `controls`. Drums: `drums.py` (subtractive kit; the default
 `modal` engine swaps in `membrane.py` for the bass drum, snare and toms: two-head modal drum with an
 implicit beater contact, an optional port and snare wires, numba; the drums hear each other's radiated
-pressure, and overheads plus `room.py`, an FDN reverb, hear the whole kit).
+pressure, and overheads plus `room.py`, an FDN reverb, hear the whole kit). `samples.py` plays the
+hi-hat and cymbals from the DRSKit samples in `samples/` (gitignored; synthesized if missing).
 `scripts/audition.py` renders new-vs-old listening clips.
 
 Diagnostics must name a location (`section > part > bar N, beat B`) and say what to change: the

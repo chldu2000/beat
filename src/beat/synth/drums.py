@@ -1,7 +1,8 @@
 """Drum kit by subtractive synthesis. Each lane gets a few round-robin variants rendered up front.
 
 The default `modal` engine plays the bass drum, snare and toms with the two-head membrane model
-(`membrane.py`) and the other lanes as before, and puts the kit in a room: the membrane drums hear each
+(`membrane.py`), the hi-hat and cymbals from samples when the sampled kit is there (`samples.py`;
+the china cymbal and side stick stay synthesized), and puts the kit in a room: the membrane drums hear each
 other (a kick or tom hit makes the snare wires buzz and the other toms ring), a pair of overheads
 hears every drum from its place in the kit, and a room reverb hears them all.
 """
@@ -129,23 +130,47 @@ def render_kit(events: list[Event], n: int, sr: int, rng: np.random.Generator,
     """Render all drum events of one part into a stereo (n, 2) buffer (and each lane's mono signal into `lanes`)."""
     out = np.zeros((n, 2))
     cache: dict[str, list[np.ndarray]] = {}
-    chokers = sorted(ev.time for ev in events if ev.lane in ("hh", "hp", "ho"))
+    chokers = _chokers(events)
 
     for ev in events:
         if ev.lane not in cache:
             voices = [_VOICES[ev.lane](sr, rng) for _ in range(ROUND_ROBIN)]
             cache[ev.lane] = [v / (np.max(np.abs(v)) + 1e-9) for v in voices]
         for time, vel in _hits(ev):
-            sample = cache[ev.lane][rng.integers(ROUND_ROBIN)].copy()
-            if ev.lane == "ho":
-                # An open hi-hat rings until the next closed hit or pedal chokes it.
-                nxt = next((c for c in chokers if c > time + 1e-4), None)
-                if nxt is not None:
-                    k = int((nxt - time) * sr)
-                    if k < len(sample):
-                        sample[k:] *= np.exp(-np.arange(len(sample) - k) / (0.008 * sr))
+            sample = _choke(cache[ev.lane][rng.integers(ROUND_ROBIN)], ev.lane, time, chokers, sr)
             _place(out, sample * vel ** 1.4, ev.lane, int(max(0.0, time) * sr), lanes)
     return out
+
+
+def render_sampled(events: list[Event], n: int, sr: int, rng: np.random.Generator, chokers: list[float],
+                   lanes: dict | None = None) -> np.ndarray:
+    """Hi-hat and cymbal events from the sampled kit (`samples.py`) into a stereo (n, 2) buffer."""
+    from .samples import Lane
+
+    out = np.zeros((n, 2))
+    players: dict[str, Lane] = {}
+    for ev in events:
+        player = players.setdefault(ev.lane, Lane(ev.lane, sr))
+        for time, vel in _hits(ev):
+            sample = _choke(player.hit(vel, bool(ev.arts.get("acc")), rng), ev.lane, time, chokers, sr)
+            _place(out, sample, ev.lane, int(max(0.0, time) * sr), lanes)
+    return out
+
+
+def _chokers(events: list[Event]) -> list[float]:
+    return sorted(ev.time for ev in events if ev.lane in ("hh", "hp", "ho"))
+
+
+def _choke(sample: np.ndarray, lane: str, time: float, chokers: list[float], sr: int) -> np.ndarray:
+    """An open hi-hat rings until the next closed hit or pedal chokes it (returns a copy)."""
+    sample = sample.copy()
+    if lane == "ho":
+        nxt = next((c for c in chokers if c > time + 1e-4), None)
+        if nxt is not None:
+            k = int((nxt - time) * sr)
+            if k < len(sample):
+                sample[k:] *= np.exp(-np.arange(len(sample) - k) / (0.008 * sr))
+    return sample
 
 
 def render_part(inst: Instrument, events: list[Event], n: int, sr: int, rng: np.random.Generator) -> np.ndarray:
@@ -153,11 +178,14 @@ def render_part(inst: Instrument, events: list[Event], n: int, sr: int, rng: np.
 
 
 def render_modal(inst: Instrument, events: list[Event], n: int, sr: int, rng: np.random.Generator) -> np.ndarray:
-    from . import room
+    from . import room, samples
     from .membrane import DRUMS, Drum
 
     close: dict[str, np.ndarray] = {}
-    out = render_kit([ev for ev in events if ev.lane not in DRUMS], n, sr, rng, close)
+    sampled = set(samples.LANES) if samples.available() else set()
+    synth = [ev for ev in events if ev.lane not in DRUMS and ev.lane not in sampled]
+    out = render_kit(synth, n, sr, rng, close)
+    out += render_sampled([ev for ev in events if ev.lane in sampled], n, sr, rng, _chokers(events), close)
     far = dict(close)
     radiated: dict[str, np.ndarray] = {}  # rate of change of each drum's volume velocity
     for lane in COUPLING_ORDER:
