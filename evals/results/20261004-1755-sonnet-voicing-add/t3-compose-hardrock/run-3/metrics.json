@@ -1,0 +1,59 @@
+{
+  "task": "t3-compose-hardrock",
+  "run": "run-3",
+  "beat_calls": 15,
+  "validate_calls": 2,
+  "events_calls": 5,
+  "first_check_errors": 0,
+  "checks_to_green": 1,
+  "error_trace": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "error_categories_all": {},
+  "error_categories_first": {},
+  "error_examples": [],
+  "final_exists": true,
+  "final_valid": true,
+  "final_errors": [],
+  "final_warnings": 0,
+  "file_chars": 4164,
+  "bars": 34,
+  "chars_per_bar": 122,
+  "checks": {
+    "bars in [24, 40]": true,
+    "tempo in [120, 135]": true,
+    "dr plays": true,
+    "bs plays": true,
+    "gt1 plays": true,
+    "gt2 plays": true,
+    ">= 3 distinct sections": true,
+    "a section repeats": true
+  },
+  "checks_passed": 8,
+  "checks_total": 8,
+  "tool_calls": {
+    "Bash": 7,
+    "Read": 2,
+    "Write": 2
+  },
+  "other_bash": [
+    "ls; echo \"---\"; which beat",
+    "cd /private/var/folders/vt/gg0_j7155r554w95f7t7hxsm0000gn/T/beat-eval-t3-compose-hardrock-afvn6n0r\necho \"--- A5 power ---\"; beat voicing A5 power --for guitar\necho \"--- D5 power ---\"; beat voicing D5 power --for guitar\necho \"--- E5 power ---\"; beat voicing E5 power --for guitar\necho \"--- G5 power ---\"; beat voicing G5 power --for guitar\necho \"--- A full ---\"; beat voicing A full --for guitar\necho \"--- D full ---\"; beat voicing D full --for guitar\necho \"--- E full ---\"; beat voicing E full --for guitar\necho \"--- G full ---\"; beat voicing G full --for guitar\n"
+  ],
+  "denied": [
+    "Bash: beat validate song.beat.yaml --json | python3 -m json.tool 2>/dev/null || beat validate song.beat.yaml --json"
+  ],
+  "cost_usd": 0.5581196,
+  "turns": 12,
+  "duration_sec": 306,
+  "result_error": false,
+  "subtype": "success",
+  "output_tokens": 26444,
+  "notes": "# Notes on composing with the Beat DSL\n\n## 1. What was hard or confusing\n\n- Figuring out exact note-duration arithmetic by hand (making sure every bar's\n  symbols sum to exactly 4 beats) is tedious and error-prone, especially for\n  the free-form solo line with mixed eighth/sixteenth/dotted values. `validate`\n  gives a clear error when a bar is off, but there's no \"show me the running\n  beat total as I type\" feedback — you only find out after writing the whole\n  bar.\n- It's not obvious up front whether `patterns` loop-fill by truncating or by\n  wrapping (e.g. does a 4-bar pattern used in an 8-bar section repeat cleanly,\n  or does a 3-bar pattern in an 8-bar section get cut mid-bar?). I ended up\n  sizing patterns to divide evenly into sections to avoid the question.\n- The interaction between `extends`, `replace`, and `use` is powerful but the\n  \"which layer wins\" rules needed a careful re-read of the spec before I was\n  confident that a `chorus2: { extends: chorus, parts: { gt2: ... } }` would\n  pick up `chorus`'s drums/bass/gt1 untouched while fully swapping gt2.\n\n## 2. Workarounds used\n\n- To give the final chorus a guitar solo while keeping an earlier, calmer\n  chorus, I didn't try to parametrize one \"chorus\" section by instance;\n  instead I made `chorus2 extends chorus` and overrode only the `gt2` part.\n  This is the pattern the demo already uses for `verse2 extends verse`, and\n  it was the only way to get genuinely different note content per repeat\n  (performance `edits` can only nudge existing notes, not add new ones).\n- For the chromatic pickup lick that walks a riff back to its downbeat (e.g.\n  `G2 G#2` before landing back on `A2`), I just wrote it inline inside the\n  pattern bar rather than finding any dedicated \"approach note\" notation —\n  there isn't one, so literal chromatic notes stood in fine.\n- Shortened the second verse to 4 bars by giving `verse2` its own `bars:`\n  and `chords:` and re-declaring `use: riff_verse` with a `replace` on the\n  last bar, since `extends` inherits `bars` by default and I needed a\n  shorter instance.\n\n## 3. Features or changes wished for\n\n- A `beat events --by-bar` style dry-run that also flags \"this bar sums to\n  3.5/4 beats\" per-pattern as you edit a `notes` string, instead of only at\n  full `validate` time, would speed up writing dense bars a lot.\n- Some shorthand for \"repeat the previous bar transposed\" at the top level\n  (not just inside `replace`) would help write a 12-bar blues-style turnaround\n  without retyping the chord-tone chord three times.\n- A way for `patterns` to declare \"this pattern is N bars but only cleanly\n  tiles into multiples of N\" so `validate` could warn earlier if a section\n  length doesn't divide evenly, rather than relying on the generic\n  \"pattern didn't divide evenly\" warning showing up only when it actually\n  doesn't divide evenly.\n"
+}

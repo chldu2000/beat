@@ -1,0 +1,183 @@
+beat: 0.1
+
+meta:
+  title: Live Wire Highway
+  tempo: 128
+  time: 4/4
+  key: A major
+  style: hard rock
+
+instruments:
+  dr:  { type: drums }
+  bs:  { type: bass }
+  gt1: { type: guitar, tone: crunch }
+  gt2: { type: guitar, tone: lead }
+
+patterns:
+  beat_verse:
+    type: drums
+    bars: 1
+    hits: |
+      hh: every 0.5
+      sd: 2!acc 4!acc
+      bd: 1 2.75 3
+
+  beat_chorus:
+    type: drums
+    bars: 1
+    hits: |
+      hh: every 0.5
+      sd: 2!acc 4!acc
+      bd: 1 2.5 3
+
+  fill:
+    type: drums
+    bars: 1
+    hits: |
+      sd: 1 1.5 2 2.5!acc
+      t1: 3
+      t2: 3.5
+      t3: 4
+      bd: 4.5
+
+  riff_verse:
+    type: pitched
+    bars: 4
+    notes: >-
+      (A2:8!pm)*7 [A2 E3 A3]:8!acc |
+      (A2:8!pm)*7 [A2 E3 A3]:8!acc |
+      (D3:8!pm)*7 [D3 A3 D4]:8!acc |
+      (A2:8!pm)*6 G2:8!pm G#2:8!pm
+
+  bass_riff:
+    type: pitched
+    bars: 4
+    notes: >-
+      (A1:8)*8 | (A1:8)*8 | (D2:8)*8 | (A1:8)*6 G1:8 G#1:8
+
+sections:
+  intro:
+    bars: 4
+    dynamic: mf
+    chords: "A5 | A5 | D5 | A5"
+    parts:
+      gt1: { use: riff_verse }
+      bs:  { use: bass_riff }
+      dr:
+        use: beat_verse
+        replace:
+          1: { hits: "hh: every 1\nbd: 1 3" }
+
+  verse:
+    bars: 8
+    dynamic: mf
+    chords: "A5 | A5 | D5 | A5 | A5 | A5 | D5 | E5"
+    parts:
+      gt1:
+        use: riff_verse
+        replace:
+          8: { notes: "(E2:8!pm)*7 [E2 B2 E3]:8!acc" }
+      bs:
+        use: bass_riff
+        replace:
+          8: { notes: "(E1:8)*8" }
+      dr:
+        use: beat_verse
+        replace:
+          8: { use: fill }
+        add:
+          1: { hits: "cr: 1!acc" }
+
+  verse2:
+    extends: verse
+    bars: 4
+    chords: "A5 | A5 | D5 | E5"
+    parts:
+      gt1:
+        use: riff_verse
+        replace:
+          4: { notes: "(E2:8!pm)*7 [E2 B2 E3]:8!acc" }
+      bs:
+        use: bass_riff
+        replace:
+          4: { notes: "(E1:8)*8" }
+      dr:
+        use: beat_verse
+        replace:
+          4: { use: fill }
+        add:
+          1: { hits: "cr: 1!acc" }
+
+  chorus:
+    bars: 8
+    dynamic: f
+    chords: "D | A | E | A | D | A | E | A"
+    parts:
+      gt1:
+        notes: >-
+          [D3 A3 D4]:4 [D3 A3 D4]:8 [D3 A3 D4]:8 [D3 A3 D4]:2 |
+          [A2 E3 A3]:4 [A2 E3 A3]:8 [A2 E3 A3]:8 [A2 E3 A3]:2 |
+          [E2 B2 E3]:4 [E2 B2 E3]:8 [E2 B2 E3]:8 [E2 B2 E3]:2 |
+          [A2 E3 A3]:4 [A2 E3 A3]:8 [A2 E3 A3]:8 [A2 E3 A3]:2 |
+          [D3 A3 D4]:4 [D3 A3 D4]:8 [D3 A3 D4]:8 [D3 A3 D4]:2 |
+          [A2 E3 A3]:4 [A2 E3 A3]:8 [A2 E3 A3]:8 [A2 E3 A3]:2 |
+          [E2 B2 E3]:4 [E2 B2 E3]:8 [E2 B2 E3]:8 [E2 B2 E3]:2 |
+          [A2 E3 A3]:4 [A2 E3 A3]:8 [A2 E3 A3]:8 [A2 E3 A3]:2
+      bs:
+        notes: "(D2:8)*8 | (A1:8)*8 | (E1:8)*8 | (A1:8)*8 | (D2:8)*8 | (A1:8)*8 | (E1:8)*8 | (A1:8)*8"
+      gt2:
+        notes: >-
+          F#4:4 r:4 D4:2 | C#4:4 r:4 A4:2 | G#4:4 r:4 E4:2 | A4:1 |
+          F#4:4 r:4 D4:2 | C#4:4 r:4 A4:2 | G#4:4 r:4 E4:2 | C#4:2 E4:2
+      dr:
+        use: beat_chorus
+        replace:
+          8: { use: fill }
+        add:
+          1: { hits: "cr: 1!acc" }
+          5: { hits: "cr: 1!acc" }
+
+  chorus2:
+    extends: chorus
+    parts:
+      gt2:
+        notes: >-
+          D4:8 E4:8 F#4:8 A4:8 D5:8 C#5:8 B4:8 A4:8 |
+          E4:8 C#4:8 A3:8 C#4:8 E4:8 A4:8 C#5:8 E5:8 |
+          B4:8 A4:8 G#4:8 E4:8 B4:8 D5:8 B4:8 G#4:8 |
+          A4:2. E5:4 |
+          F#4:8 A4:8 D5:8 F#5:8 D5:8 A4:8 F#4:8 D4:8 |
+          C#5:16 D5:16 E5:16 D5:16 C#5:16 A4:16 E4:16 C#4:16 A4:4 C#5:4 |
+          G#4:4 B4:4 D5:8 B4:8 E4:4 |
+          A5:2 F#5:4 A5:4
+
+  outro:
+    bars: 2
+    dynamic: f
+    chords: "A | A"
+    parts:
+      gt1: { notes: "[A2 E3 A3 C#4 E4]:1~ | [A2 E3 A3 C#4 E4]:1" }
+      bs:  { notes: "A1:1~ | A1:1" }
+      gt2: { notes: "E5:1~ | E5:1" }
+      dr:
+        hits: |
+          cr: 1!acc |
+          bd: 1!acc |
+
+form: [intro, verse, chorus, verse2, chorus2, outro]
+
+performance:
+  seed: 11
+  humanize: { timing_ms: 5, velocity: 0.04 }
+  parts:
+    dr:
+      lanes:
+        sd: { offset_ms: 6 }
+        hh: { velocity: -0.05 }
+    bs: { offset_ms: 3 }
+
+mix:
+  dr:  { gain_db: 0 }
+  bs:  { gain_db: -1 }
+  gt1: { gain_db: -2, pan: -0.35 }
+  gt2: { gain_db: -3, pan: 0.35 }

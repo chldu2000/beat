@@ -95,6 +95,74 @@ sections:
     assert c.instances[1].section.tempo == 100
 
 
+def test_replace_transpose():
+    diags, c = build("""
+patterns:
+  riff: { type: pitched, bars: 1, notes: "E2:4 G2 A2 B2" }
+sections:
+  a:
+    bars: 3
+    parts:
+      bs: { use: riff, transpose: -12, replace: { 2-3: { use: riff, transpose: -7 } } }
+""")
+    assert diags.items == []
+    firsts = [e.pitch for e in c.events if e.pos_in_bar == 0]
+    assert firsts == [parse_pitch("E1"), parse_pitch("A1"), parse_pitch("A1")]
+
+
+def test_replace_checks_its_keys():
+    diags, _ = build("""
+sections:
+  a:
+    bars: 2
+    parts:
+      dr:
+        hits: "bd: 1 | 1"
+        replace:
+          2: { hits: "sd: 1", grid: "sd: x---------------" }
+      gt: { notes: "E2:1 | E2:1", replace: { 1: { notes: "A2:1", transpos: 2 } } }
+""")
+    assert "a > dr > replace 2: needs exactly one of notes, grid, hits, use" in messages(diags)
+    assert "a > gt > replace 1: unknown key 'transpos' (did you mean 'transpose'?)" in messages(diags, "warning")
+
+
+def test_add_layers_drum_hits():
+    diags, c = build("""
+patterns:
+  groove: { type: drums, bars: 1, hits: "hh: every 1\\nbd: 1 3\\nsd: 2 4" }
+sections:
+  a:
+    bars: 4
+    parts:
+      dr:
+        use: groove
+        replace: { 4: { hits: "sd: 1 2 3 4" } }
+        add: { 1: { hits: "cr: 1!acc" }, 3-4: { hits: "bd: 2.5 | 2.5" } }
+""")
+    assert diags.items == []
+    by_bar = lambda lane: [e.beat // 4 + 1 for e in c.events if e.lane == lane]
+    assert by_bar("cr") == [1]
+    assert by_bar("hh") == [1] * 4 + [2] * 4 + [3] * 4  # bar 4 replaced; add layers on top of it
+    assert by_bar("bd").count(4) == 1 and by_bar("bd").count(3) == 3
+
+
+def test_add_errors():
+    diags, _ = build("""
+sections:
+  a:
+    bars: 1
+    parts:
+      dr:
+        hits: "hh: every 1\\nsd: 1"
+        add: { 1: { hits: "hh: 2\\ncr: 1" } }
+      gt: { notes: "E2:1", add: { 1: { notes: "B2:1" } } }
+""")
+    errs = messages(diags)
+    assert "a > dr > add > bar 1, beat 2: 'hh' already hits here" in errs
+    assert "a > dr > bar 1, beat 1: drummer needs 3 hands for hh, sd, cr" in errs
+    assert "a > gt > add: 'add' only applies to drums" in errs
+
+
 def test_range_and_bar_count_errors():
     diags, _ = build("""
 sections:

@@ -1,0 +1,70 @@
+{
+  "task": "t3-compose-hardrock",
+  "run": "run-1",
+  "beat_calls": 5,
+  "validate_calls": 3,
+  "events_calls": 2,
+  "first_check_errors": 4,
+  "checks_to_green": 2,
+  "error_trace": [
+    4,
+    0,
+    0,
+    0,
+    0
+  ],
+  "error_categories_all": {
+    "performance": 1,
+    "other": 1,
+    "token": 2
+  },
+  "error_categories_first": {
+    "token": 2,
+    "other": 1,
+    "performance": 1
+  },
+  "error_examples": [
+    "[error] outro > dr: hits line '|' must look like 'sd: 2 4'",
+    "[error] outro > dr: lane 'bd' has 1 bar(s) separated by '|', expected 2",
+    "[error] outro > dr: lane 'cr' has 1 bar(s) separated by '|', expected 2",
+    "[error] performance > edits[0]: edit matches no note (did the score change?)"
+  ],
+  "final_exists": true,
+  "final_valid": true,
+  "final_errors": [],
+  "final_warnings": 0,
+  "file_chars": 3450,
+  "bars": 38,
+  "chars_per_bar": 91,
+  "checks": {
+    "bars in [24, 40]": true,
+    "tempo in [120, 135]": true,
+    "dr plays": true,
+    "bs plays": true,
+    "gt1 plays": true,
+    "gt2 plays": true,
+    ">= 3 distinct sections": true,
+    "a section repeats": true
+  },
+  "checks_passed": 8,
+  "checks_total": 8,
+  "tool_calls": {
+    "Bash": 7,
+    "Read": 2,
+    "Write": 2,
+    "Edit": 5
+  },
+  "other_bash": [
+    "ls -la && find . -maxdepth 2 -iname \"SPEC.md\" -o -iname \"*.beat.yaml\" | head -50"
+  ],
+  "denied": [
+    "Bash: beat validate song.beat.yaml --json | python3 -m json.tool 2>/dev/null || beat validate song.beat.yaml --json"
+  ],
+  "cost_usd": 0.5455482,
+  "turns": 17,
+  "duration_sec": 240,
+  "result_error": false,
+  "subtype": "success",
+  "output_tokens": 20959,
+  "notes": "# Notes on composing with the Beat DSL\n\n## 1. What was hard or confusing\n\n- Repeating a section in `form` always plays identical content for every instance.\n  It wasn't immediately obvious that giving the second chorus a different lead guitar\n  part required defining a whole new section (`chorus2: extends: chorus`) rather than\n  somehow varying content per-instance within one section definition.\n- The outro's drum `hits` multi-bar format tripped me up at first: a trailing `|` per\n  lane line is required to mark an (otherwise silent) bar, and the error message\n  (\"lane 'cr' has 1 bar(s) separated by '|', expected 2\") only appears after the fact\n  rather than from reading the spec's prose.\n- `beat validate`'s \"edit matches no note\" error doesn't say *why* it failed to match\n  (wrong beat vs. wrong pitch vs. wrong section/instance) — I had to manually recompute\n  note onset times from the `notes` string to find that my target pitch started half a\n  beat earlier than I assumed.\n\n## 2. Workarounds for things the DSL couldn't express directly\n\n- To give the final chorus a unique lead-guitar solo while keeping drums/bass/rhythm\n  guitar identical to the first chorus, I duplicated the section via `extends` and\n  overrode only the `gt2` part, then pointed the second `form` slot at the new section\n  id instead of reusing `chorus`.\n- There's no instrument-level \"lead guitar accent via automation\" shortcut, so the\n  single extra-loud bend note in the solo was done with a `performance.edits` entry\n  (`velocity: \"+0.1\"`) targeting one exact bar/beat/pitch rather than anything in the\n  score layer itself.\n\n## 3. Features or changes I'd want\n\n- Per-instance overrides within a single section (e.g. `instances: { 2: { parts: { gt2: ... } } }`)\n  so a repeated section can vary slightly without having to clone it with `extends`\n  and juggle two section ids in `form`.\n- A `beat events --at section:bar:beat --part p` lookup (or richer error context on\n  failed `performance.edits`) to avoid manually re-deriving onset times from a `notes`\n  string when aiming an edit.\n- Clearer validator messaging for the multi-bar `hits` block, e.g. suggesting the\n  missing trailing `|` directly in the error text.\n"
+}

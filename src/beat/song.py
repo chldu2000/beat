@@ -7,7 +7,7 @@ from fractions import Fraction
 import yaml
 
 from .diagnostics import Diagnostics, did_you_mean, loc
-from .notation import DYNAMICS, Item, parse_grid, parse_hits, parse_notes
+from .notation import DYNAMICS, Item, fmt_beats, parse_grid, parse_hits, parse_notes
 from .pitch import parse_chord, parse_pitch
 
 SPEC_VERSION = "0.1"
@@ -17,7 +17,9 @@ META_KEYS = {"title", "tempo", "time", "key", "style"}
 INSTRUMENT_KEYS = {"type", "tuning", "frets", "tone", "model"}
 PATTERN_KEYS = {"type", "bars", "notes", "grid", "hits", "steps"}
 SECTION_KEYS = {"bars", "tempo", "dynamic", "chords", "parts", "extends"}
-PART_KEYS = {"notes", "grid", "hits", "use", "steps", "transpose", "replace", "dynamic"}
+PART_KEYS = {"notes", "grid", "hits", "use", "steps", "transpose", "replace", "add", "dynamic"}
+REPLACE_KEYS = {"notes", "grid", "hits", "use", "steps", "transpose"}
+ADD_KEYS = {"grid", "hits", "use", "steps"}
 
 INSTRUMENT_TYPES = {"drums", "bass", "guitar", "organ", "piano"}
 DEFAULT_TUNING = {"guitar": ["E2", "A2", "D3", "G3", "B3", "E4"], "bass": ["E1", "A1", "D2", "G2"]}
@@ -380,34 +382,77 @@ def _load_part(spec, inst: Instrument, section: Section, song: Song, patterns: d
     else:
         bars = _parse_bars(spec, inst, section.bars, level, song, where, diags)
 
-    transpose = spec.get("transpose", 0)
-    if transpose:
-        if not inst.pitched or not isinstance(transpose, int):
-            diags.error(f"{where} > transpose", "transpose must be an integer and only applies to pitched parts")
-        else:
-            bars = [[it.transposed(transpose) for it in bar] for bar in bars]
+    bars = _transpose(bars, spec, inst, where, diags)
 
-    replace = spec.get("replace") or {}
-    if not isinstance(replace, dict):
-        diags.error(f"{where} > replace", "'replace' must map bar numbers (e.g. 8 or '5-6') to notes/grid")
-        replace = {}
-    for key, rspec in replace.items():
+    for key, rbars in _bar_blocks(spec, "replace", REPLACE_KEYS, inst, section, level, song, patterns, diags):
+        first, last = key
+        bars[first - 1:last] = rbars
+
+    if "add" in spec and inst.pitched:
+        diags.error(f"{where} > add", "'add' only applies to drums; for pitched parts rewrite the bars with 'replace'")
+    else:
+        for key, abars in _bar_blocks(spec, "add", ADD_KEYS, inst, section, level, song, patterns, diags):
+            first, _ = key
+            for i, extra in enumerate(abars):
+                bars[first - 1 + i] = _overlay(bars[first - 1 + i], extra, f"{where} > add", first + i, diags)
+    return bars
+
+
+def _transpose(bars: list[list[Item]], spec: dict, inst: Instrument, where: str,
+               diags: Diagnostics) -> list[list[Item]]:
+    transpose = spec.get("transpose", 0)
+    if not transpose:
+        return bars
+    if not inst.pitched or not isinstance(transpose, int):
+        diags.error(f"{where} > transpose", "transpose must be an integer and only applies to pitched parts")
+        return bars
+    return [[it.transposed(transpose) for it in bar] for bar in bars]
+
+
+def _bar_blocks(spec: dict, kind: str, allowed: set[str], inst: Instrument, section: Section, level: float,
+                song: Song, patterns: dict, diags: Diagnostics):
+    """Yield ((first, last), bars) for each entry of a `replace` or `add` mapping."""
+    where = f"{section.id} > {inst.id}"
+    blocks = spec.get(kind) or {}
+    if not isinstance(blocks, dict):
+        diags.error(f"{where} > {kind}", f"'{kind}' must map bar numbers (e.g. 8 or '5-6') to content")
+        return
+    sources = [k for k in ("notes", "grid", "hits", "use") if k in allowed]
+    for key, bspec in blocks.items():
         m = re.match(r"^(\d+)(?:-(\d+))?$", str(key))
         first, last = (int(m[1]), int(m[2] or m[1])) if m else (0, 0)
         if not m or not 1 <= first <= last <= section.bars:
-            diags.error(f"{where} > replace", f"invalid bar range '{key}' (section has {section.bars} bars)")
+            diags.error(f"{where} > {kind}", f"invalid bar range '{key}' (section has {section.bars} bars)")
             continue
-        if not isinstance(rspec, dict):
-            diags.error(f"{where} > replace {key}", "replacement must be a mapping with notes, grid, hits or use")
+        bwhere = f"{where} > {kind} {key}"
+        if not isinstance(bspec, dict):
+            diags.error(bwhere, f"must be a mapping with one of {', '.join(sources)}")
             continue
-        rwhere = f"{where} > replace {key}"
+        _warn_unknown(bspec, allowed, bwhere, diags)
+        given = [k for k in sources if k in bspec]
+        if len(given) != 1:
+            diags.error(bwhere, f"needs exactly one of {', '.join(sources)}, got {given or 'none'}")
+            continue
         n = last - first + 1
-        if "use" in rspec:
-            new = _pattern_bars(rspec["use"], inst, n, level, song, patterns, rwhere, diags)
+        if "use" in bspec:
+            new = _pattern_bars(bspec["use"], inst, n, level, song, patterns, bwhere, diags)
         else:
-            new = _parse_bars(rspec, inst, n, level, song, rwhere, diags)
-        bars[first - 1:last] = new
-    return bars
+            new = _parse_bars(bspec, inst, n, level, song, bwhere, diags)
+        yield (first, last), _transpose(new, bspec, inst, bwhere, diags)
+
+
+def _overlay(bar: list[Item], extra: list[Item], where: str, bar_no: int, diags: Diagnostics) -> list[Item]:
+    """Drum hits from `add` layered onto a bar; a lane hit twice at the same beat is an error."""
+    taken = {(it.lane, it.onset) for it in bar}
+    out = list(bar)
+    for it in extra:
+        if (it.lane, it.onset) in taken:
+            diags.error(loc(where, f"bar {bar_no}, beat {fmt_beats(it.onset + 1)}"),
+                        f"'{it.lane}' already hits here; drop it from 'add' (to change the existing hit, "
+                        f"use 'replace' for this bar)")
+            continue
+        out.append(it)
+    return sorted(out, key=lambda it: it.onset)
 
 
 def _pattern_bars(name, inst: Instrument, n_bars: int, level: float, song: Song, patterns: dict,

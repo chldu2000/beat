@@ -224,9 +224,13 @@ sections:
         use: rock_beat            # 引用片段；片段比段落短时会循环填满
         replace:                  # 用新内容替换某些小节（从 1 开始计数）
           8: { grid: "sd: --x-x-xxX-X-XXXX\nbd: x---------x---" }
+        add:                      # 在原有节奏上叠加击打（只适用于鼓）
+          1: { hits: "cr: 1!acc" }
       bs:
         use: riff_a
         transpose: 0              # 可选，移调（半音数），只适用于音高声部
+        replace:
+          5-6: { use: riff_a, transpose: 5 } # replace 里也可以移调，只作用于这几个小节
       gt1:
         notes: "..."
       # 没有列出的声部在本段落中不演奏
@@ -237,13 +241,20 @@ sections:
       gt2: { notes: "..." }
 ```
 
-**内容来源**：每个声部的内容必须在以下几种方式中选**一种**：`notes`（音高声部）、`hits` 或 `grid`（鼓）、`use`。另外可以加 `replace`。片段（`patterns`）和 `replace` 里也可以用这几种写法。
+**内容来源**：每个声部的内容必须在以下几种方式中选**一种**：`notes`（音高声部）、`hits` 或 `grid`（鼓）、`use`。另外可以加 `replace`，鼓还可以加 `add`。片段（`patterns`）、`replace` 和 `add` 里也可以用这几种写法。
 
-**`replace`**：键可以是 `8`，也可以是范围 `5-6`。值是 `notes`、`grid` 或 `use`（引用片段，例如可复用的鼓加花），长度必须等于被替换的小节数。
+**`replace`**：键可以是 `8`，也可以是范围 `5-6`。值是 `notes`、`hits`、`grid` 或 `use`（引用片段，例如可复用的鼓加花）中的一种，长度必须等于被替换的小节数。
 
 - 替换是**整小节**的：鼓的小节被替换后，新内容里没写的鼓件在这些小节不演奏。
 - 替换的 `grid` 可以有自己的 `steps:`，例如在 16 步的鼓谱里单独放一个三连音小节：`replace: { 1: { steps: 12, grid: "rd: x-xx-xx-xx-x" } }`。
+- 替换内容可以有自己的 `transpose:`，例如把同一个 riff 搬到别的和弦上：`replace: { 5-6: { use: riff_a, transpose: 5 } }`。
 - 声部的 `transpose` 只作用于主体内容（`notes` 或 `use`），不作用于 `replace` 进来的内容。
+
+**`add`**（只适用于鼓）：键的写法和 `replace` 一样，值是 `hits`、`grid` 或 `use` 中的一种。新的击打**叠加**在这些小节原有的节奏上，原有的击打保持不变。最常见的用法是在段落开头加一下吊镲：`add: { 1: { hits: "cr: 1!acc" } }`。
+
+- 先做 `replace`，再做 `add`，所以 `add` 叠加在替换后的内容上。
+- 同一个鼓件在同一拍位已经有击打时报错。要改掉原有的击打（例如去掉第 1 拍的踩镲），用 `replace` 重写这一小节。
+- 叠加后仍然要满足“同一时刻最多 2 只手”。吊镲和踩镲、军鼓同时落在一拍上时，要用 `replace` 把踩镲去掉。
 
 **`dynamic`**：声部也可以单独设置默认力度，覆盖段落的 `dynamic`。
 
@@ -384,11 +395,19 @@ beat events   SONG [--json] [--parts a,b] [--sections x,y] [--bars 5-8] [--by-ba
                                              输出编译后的音符；--by-bar 是逐小节的紧凑视图
 beat midi     SONG -o out.mid                导出 MIDI
 beat render   SONG -o out.wav [--parts gt1,bs] [--sections verse,chorus]
+beat voicing  CHORD [full|power] [--for guitar|bass|organ|piano] [--tuning D2,A2,...] [--low C3] [--max 6] [--json]
+                                             列出和弦的可演奏排列，复制到 notes 里用
 beat analyze  SONG [--json]                  （v0.2）乐理和音频分析报告
 ```
 
 - 加 `--json` 时输出机器可读的结果，供 Agent 使用；不加时输出给人看的文本。
 - 每条诊断信息的格式：`[error] verse#1 > bs > bar 3: duration 3.5 beats, expected 4`
+
+**`beat voicing`**：DSL 本身不会根据 `chords` 自动生成和弦排列（文件里写什么就演奏什么），这个命令只是查询工具。
+
+- 吉他、贝斯：列出能按出来的指法，每行是指法图（从低音弦到高音弦，`x` 表示不弹）和对应的音，例如 `x02210  [A2 E3 A3 C4 E4]`。排列一定满足第 12 节的可演奏规则：最低音是根音（转位和弦是 `/` 后面的音），用相邻的弦，按“容易弹、音多”排序。`--tuning` 用于降调等非标准定弦。
+- `full`（默认）：包含和弦的所有音；四个音以上的和弦可以省略五音。`power`：根音、五度、八度（强力和弦），和弦里没有纯五度时报错。
+- 风琴、钢琴：从 `--low` 往上的密集排列，列出原位和各个转位。
 
 ---
 

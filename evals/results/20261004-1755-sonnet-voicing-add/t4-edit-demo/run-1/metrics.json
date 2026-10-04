@@ -1,0 +1,59 @@
+{
+  "task": "t4-edit-demo",
+  "run": "run-1",
+  "beat_calls": 11,
+  "validate_calls": 1,
+  "events_calls": 2,
+  "first_check_errors": 0,
+  "checks_to_green": 1,
+  "error_trace": [
+    0,
+    0,
+    0
+  ],
+  "error_categories_all": {},
+  "error_categories_first": {},
+  "error_examples": [],
+  "final_exists": true,
+  "final_valid": true,
+  "final_errors": [],
+  "final_warnings": 0,
+  "file_chars": 4184,
+  "bars": 42,
+  "chars_per_bar": 100,
+  "checks": {
+    "form == ['intro', 'verse', 'chorus', 'verse', 'chorus', 'bridge', 'outro']": true,
+    "bridge has 4 bars": true,
+    "dr plays in bridge": true,
+    "bs plays in bridge": true,
+    "gt1 plays in bridge": true,
+    "org plays in bridge": true,
+    "gt2 silent in bridge": true,
+    "intro unchanged": true,
+    "verse unchanged": true,
+    "chorus unchanged": true,
+    "outro unchanged": true,
+    "performance.parts.dr.lanes.sd.offset_ms == 16": true
+  },
+  "checks_passed": 12,
+  "checks_total": 12,
+  "tool_calls": {
+    "Bash": 8,
+    "Read": 1,
+    "Edit": 2,
+    "Write": 1
+  },
+  "other_bash": [
+    "ls; echo \"---\"; cat SPEC.md | head -200",
+    "cat SPEC.md | sed -n '200,400p'",
+    "grep -n \"offset_ms\\|sd:\" song.beat.yaml"
+  ],
+  "denied": [],
+  "cost_usd": 0.2013414,
+  "turns": 13,
+  "duration_sec": 79,
+  "result_error": false,
+  "subtype": "success",
+  "output_tokens": 5724,
+  "notes": "# Notes\n\n## 1. What was hard or confusing\n\n- The spec and tool output mix Chinese and don't give an obvious way to check\n  the \"silence\" of a part for a section other than noticing it's absent from\n  `--by-bar` output.\n- `beat events --by-bar` labels length as `/N` where N is beats, not note\n  value (e.g. a whole note shows as `/4`, not `/1`); easy to misread at a\n  glance against the `notes` string's own `:1` note-value suffix.\n- Figuring out which octave/voicing to use for a brand-new section (so it\n  sits in the same register as the rest of the song) required running\n  `beat voicing` for every chord and eyeballing which option matched the\n  existing gt1/bs/org ranges — there's no \"match the register used elsewhere\n  in this song\" helper.\n\n## 2. Workarounds\n\n- No pattern reuse for the bridge drums/bass/gt1/org since each bar has a\n  different chord — wrote the four bars out directly in `notes`/`hits`\n  instead of defining a `pattern`.\n- To get smooth voice leading for the organ chords (Am-C-D-B) I picked\n  specific inversions from `beat voicing ... full --for organ` by hand rather\n  than there being a \"voice-lead from the previous chord\" option.\n\n## 3. Features or changes I wish existed\n\n- A way to ask `beat voicing` to prefer voicings close to a given previous\n  chord (for automatic smooth voice leading) instead of just \"easiest first.\"\n- A `beat events --by-bar` option to show note lengths in note values (e.g.\n  `1`, `4.`) to match the `notes` syntax, in addition to/instead of beats.\n- A quick \"diff\" mode for `beat events` to compare two sections/instances\n  directly, useful when checking that a copied-and-modified section (like a\n  bridge) matches intent relative to a neighboring section.\n"
+}

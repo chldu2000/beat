@@ -1,0 +1,181 @@
+beat: 0.1
+
+meta:
+  title: Redline Revival
+  tempo: 128
+  time: 4/4
+  key: A major
+  style: hard rock
+
+instruments:
+  dr:  { type: drums }
+  bs:  { type: bass }
+  gt1: { type: guitar, tone: crunch }
+  gt2: { type: guitar, tone: lead }
+
+patterns:
+  beat_verse:
+    type: drums
+    bars: 1
+    hits: |
+      hh: every 0.5
+      sd: 2 4
+      bd: 1 2.75 3
+
+  beat_chorus:
+    type: drums
+    bars: 1
+    hits: |
+      hh: every 0.5
+      sd: 2 4!acc
+      bd: 1 3 3.5
+
+  fill:
+    type: drums
+    bars: 1
+    hits: |
+      hh: 1 1.5
+      sd: 2 2.5!ghost 3!acc 3.5
+      t2: 4
+      t3: 4.5!acc
+      bd: 1 3
+
+  intro_riff:
+    type: pitched
+    bars: 1
+    notes: "(A2:8!pm)*4 C3:8!pm C#3:8!pm D3:8!pm E3:8!pm"
+
+  intro_bass:
+    type: pitched
+    bars: 1
+    notes: "(A1:8)*4 C2:8 C#2:8 D2:8 E2:8"
+
+  gallop_a:
+    type: pitched
+    bars: 1
+    notes: "(A2:8!pm)*6 [A2 E3]:8!acc [A2 E3]:8"
+
+  bass_gallop_a:
+    type: pitched
+    bars: 1
+    notes: "(A1:8)*8"
+
+  chorus_hit:
+    type: pitched
+    bars: 1
+    notes: "[A2 E3 A3 C#4 E4]:4!acc [A2 E3 A3 C#4 E4]:4 [A2 E3 A3 C#4 E4]:4 [A2 E3 A3 C#4 E4]:4"
+
+  chorus_bass:
+    type: pitched
+    bars: 1
+    notes: "(A1:8)*8"
+
+sections:
+  intro:
+    bars: 4
+    dynamic: f
+    chords: "A5 | A5 | A5 | A5"
+    parts:
+      gt1: { use: intro_riff }
+      bs: { use: intro_bass }
+      dr:
+        use: beat_verse
+        add: { 1: { hits: "cr: 1!acc" } }
+
+  verse:
+    bars: 8
+    dynamic: mf
+    chords: "A5 | A5 | D5 | D5 | A5 | A5 | E5 | E5"
+    parts:
+      gt1:
+        use: gallop_a
+        replace:
+          3-4: { use: gallop_a, transpose: 5 }
+          7-8: { use: gallop_a, transpose: 7 }
+      bs:
+        use: bass_gallop_a
+        replace:
+          3-4: { use: bass_gallop_a, transpose: 5 }
+          7-8: { use: bass_gallop_a, transpose: 7 }
+      dr:
+        use: beat_verse
+        replace: { 8: { use: fill } }
+        add: { 1: { hits: "cr: 1!acc" } }
+
+  chorus:
+    bars: 8
+    dynamic: f
+    chords: "D | A | E | A | D | A | E | A"
+    parts:
+      gt1:
+        use: chorus_hit
+        replace:
+          1: { use: chorus_hit, transpose: 5 }
+          3: { use: chorus_hit, transpose: 7 }
+          5: { use: chorus_hit, transpose: 5 }
+          7: { use: chorus_hit, transpose: 7 }
+      bs:
+        use: chorus_bass
+        replace:
+          1: { use: chorus_bass, transpose: 5 }
+          3: { use: chorus_bass, transpose: 7 }
+          5: { use: chorus_bass, transpose: 5 }
+          7: { use: chorus_bass, transpose: 7 }
+      gt2:
+        notes: >-
+          r:2 D4:4 E4:4 | r:2 F#4:4 A4:4 | r:2 G#4:4 B4:4 | r:2 A4:2 |
+          r:2 D4:4 E4:4 | r:2 F#4:4 A4:4 | r:2 G#4:4 B4:4 | r:2 A4:2
+      dr:
+        use: beat_chorus
+        add: { 1: { hits: "cr: 1!acc" } }
+
+  chorus2:
+    extends: chorus
+    parts:
+      gt2:
+        notes: >-
+          A4:8 B4:8 C#5:8 D5:8 C#5:8 B4:8 A4:4 |
+          E4:8 F#4:8 A4:8 B4:8!bend=1 A4:4 r:4 |
+          B4:8 C#5:8 D5:8 E5:8 D5:8 C#5:8 B4:4 |
+          A4:2!vib r:2 |
+          D5:8 C#5:8 B4:8 A4:8 F#4:8 E4:8 D4:4 |
+          C#5:8 A4:8 E4:8 C#4:8 A4:4 r:4 |
+          E4:8 G#4:8 B4:8 E5:8 D5:8 B4:8 G#4:4 |
+          A4:1~
+      dr:
+        use: beat_chorus
+        replace: { 8: { use: fill } }
+        add: { 1: { hits: "cr: 1!acc" } }
+
+  outro:
+    bars: 2
+    dynamic: f
+    chords: "A | A"
+    parts:
+      gt1: { notes: "[A2 E3 A3 C#4 E4]:1~ | [A2 E3 A3 C#4 E4]:1" }
+      bs: { notes: "A1:1~ | A1:1" }
+      gt2: { notes: "A4:1~ | A4:1!vib" }
+      dr:
+        hits: |
+          cr: 1!acc |
+          bd: 1!acc | 1!acc
+
+form: [intro, verse, chorus, verse, chorus2, outro]
+
+performance:
+  seed: 7
+  humanize: { timing_ms: 5, velocity: 0.04 }
+  parts:
+    dr:
+      lanes:
+        sd: { offset_ms: 6 }
+        hh: { velocity: -0.05 }
+    bs: { offset_ms: 3 }
+    gt1: { strum_ms: 6 }
+
+mix:
+  dr:  { gain_db: 0 }
+  bs:  { gain_db: -1 }
+  gt1: { gain_db: -2, pan: -0.3 }
+  gt2: { gain_db: -3, pan: 0.3 }
+  master: { gain_db: 0 }

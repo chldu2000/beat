@@ -126,7 +126,21 @@ sections:
           cr: 1!acc |
           bd: 1!acc |
 
-form: [intro, verse, chorus, verse, chorus, outro]
+  bridge:
+    bars: 4
+    chords: "Am | C | D | B"
+    parts:
+      dr:
+        hits: |
+          sd: 3 | 3 | 3 | 3
+      bs:
+        notes: "A1:1 | C2:1 | D2:1 | B1:1"
+      gt1:
+        notes: "[A2 E3 A3]:1 | [C3 G3 C4]:1 | [D3 A3 D4]:1 | [B2 F#3 B3]:1"
+      org:
+        notes: "[A3 C4 E4]:1 | [C4 E4 G4]:1 | [A3 D4 F#4]:1 | [B3 D#4 F#4]:1"
+
+form: [intro, verse, chorus, verse, chorus, bridge, outro]
 
 performance:
   seed: 7
@@ -134,7 +148,7 @@ performance:
   parts:
     dr:
       lanes:
-        sd: { offset_ms: 6 }
+        sd: { offset_ms: 16 }
         hh: { velocity: -0.05 }
     bs: { offset_ms: 3 }
   edits:

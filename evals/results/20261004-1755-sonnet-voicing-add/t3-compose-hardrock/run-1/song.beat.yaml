@@ -1,0 +1,150 @@
+beat: 0.1
+
+meta:
+  title: Thunder Road Rattler
+  tempo: 128
+  time: 4/4
+  key: A major
+  style: hard rock
+
+instruments:
+  dr:  { type: drums }
+  bs:  { type: bass }
+  gt1: { type: guitar, tone: crunch }
+  gt2: { type: guitar, tone: lead }
+
+patterns:
+  beat_main:
+    type: drums
+    bars: 1
+    hits: |
+      hh: every 0.5
+      sd: 2!acc 4!acc
+      bd: 1 3 3.5
+  beat_chorus:
+    type: drums
+    bars: 1
+    hits: |
+      rd: every 0.5
+      sd: 2!acc 4!acc
+      bd: 1 1.5 3 3.5
+  fill:
+    type: drums
+    bars: 1
+    hits: |
+      sd: 1!acc 2 2.75!ghost
+      t1: 3
+      t2: 3.5
+      t3: 3.75!acc
+      bd: 1 2.5
+  riff_a:
+    type: pitched
+    bars: 2
+    notes: "A2:8!pm A2!pm C3 A2!pm D3 A2!pm Eb3 D3 | (A2:8!pm)*4 [D3 A3]:4 [E3 B3]:4"
+  bass_a:
+    type: pitched
+    bars: 2
+    notes: "(A1:8)*8 | (A1:8)*6 D2:8 E2:8"
+
+sections:
+  intro:
+    bars: 4
+    chords: "A5 | A5 | A5 | A5"
+    parts:
+      gt1: { use: riff_a }
+      bs: { use: bass_a }
+      dr:
+        use: beat_main
+        add: { 1: { hits: "cr: 1!acc" } }
+
+  verse:
+    bars: 8
+    chords: "A5 | A5 | A5 | A5 | D5 | D5 | E5 | E5"
+    parts:
+      gt1:
+        use: riff_a
+        replace:
+          5-6: { notes: "(D3:8!pm)*8 | (D3:8!pm)*8" }
+          7-8: { notes: "(E3:8!pm)*8 | (E3:8!pm)*6 [E3 B3]:4" }
+      bs:
+        use: bass_a
+        replace:
+          5-6: { notes: "(D2:8)*8 | (D2:8)*8" }
+          7-8: { notes: "(E1:8)*8 | (E1:8)*6 B1:8 E2:8" }
+      dr:
+        use: beat_main
+        replace: { 8: { use: fill } }
+        add: { 1: { hits: "cr: 1!acc" } }
+
+  chorus:
+    bars: 8
+    dynamic: f
+    chords: "D | A | E | A | D | A | E | A"
+    parts:
+      gt1:
+        notes: >-
+          [D3 A3 D4]:4. [D3 A3 D4]:8~ [D3 A3 D4]:2 |
+          [A2 E3 A3]:4. [A2 E3 A3]:8~ [A2 E3 A3]:2 |
+          [E3 B3 E4]:4. [E3 B3 E4]:8~ [E3 B3 E4]:2 |
+          [A2 E3 A3]:4. [A2 E3 A3]:8~ [A2 E3 A3]:2 |
+          [D3 A3 D4]:4. [D3 A3 D4]:8~ [D3 A3 D4]:2 |
+          [A2 E3 A3]:4. [A2 E3 A3]:8~ [A2 E3 A3]:2 |
+          [E3 B3 E4]:4. [E3 B3 E4]:8~ [E3 B3 E4]:2 |
+          [A2 E3 A3]:4. [A2 E3 A3]:8~ [A2 E3 A3]:2
+      bs:
+        notes: "(D2:8)*8 | (A1:8)*8 | (E1:8)*8 | (A1:8)*8 | (D2:8)*8 | (A1:8)*8 | (E1:8)*8 | (A1:8)*8"
+      dr:
+        use: beat_chorus
+        replace: { 8: { use: fill } }
+        add: { 1: { hits: "cr: 1!acc" } }
+
+  chorus2:
+    extends: chorus
+    parts:
+      gt2:
+        notes: >-
+          D4:8 F#4:8 A4:8 F#4:8 D4:4 A3:4 |
+          A3:8 C#4:8 E4:8 C#4:8 A3:4 E3:4 |
+          E4:8 G#4:8 B4:4!bend=1 G#4:8 E4:8 B3:4 |
+          A4:4!vib E4:8 C#4:8 A3:4 E3:8 C#3:8 |
+          F#4:8 A4:8 D5:4 A4:8 F#4:8 D4:4 |
+          C#4:8 E4:8 A4:4 E4:8 C#4:8 A3:4 |
+          G#4:8 B4:8 E5:4!bend=2 B4:8 G#4:8 E4:4 |
+          A4:1!vib
+
+  outro:
+    bars: 2
+    dynamic: f
+    chords: "A | A"
+    parts:
+      gt1: { notes: "[A2 E3 A3 C#4 E4]:1~ | [A2 E3 A3 C#4 E4]:1" }
+      bs: { notes: "A1:1~ | A1:1" }
+      dr:
+        hits: |
+          cr: 1!acc |
+          bd: 1!acc |
+
+form: [intro, verse, chorus, verse, chorus2, outro]
+
+performance:
+  seed: 11
+  humanize: { timing_ms: 5, velocity: 0.04 }
+  parts:
+    dr:
+      lanes:
+        sd: { offset_ms: 6 }
+        hh: { velocity: -0.05 }
+    bs: { offset_ms: 3 }
+  edits:
+    - part: gt2
+      section: chorus2
+      bar: 7
+      beat: 2
+      pitch: E5
+      velocity: "+0.1"
+
+mix:
+  dr:  { gain_db: 0 }
+  bs:  { gain_db: -1 }
+  gt1: { gain_db: -2, pan: -0.3 }
+  gt2: { gain_db: -3, pan: 0.3 }

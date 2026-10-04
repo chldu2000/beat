@@ -1,4 +1,4 @@
-"""Command-line interface: validate / events / midi / render (spec section 13)."""
+"""Command-line interface: validate / events / midi / render / voicing (spec section 13)."""
 
 import argparse
 import json
@@ -124,6 +124,41 @@ def cmd_render(args) -> int:
     return 0
 
 
+def cmd_voicing(args) -> int:
+    from .pitch import parse_pitch, pitch_name
+    from .song import DEFAULT_FRETS, DEFAULT_TUNING, FIXED_RANGE
+    from .voicing import voicings
+
+    fretted = args.instrument in DEFAULT_TUNING
+    try:
+        if args.tuning and not fretted:
+            raise ValueError(f"--tuning only applies to guitar and bass, not {args.instrument}")
+        names = args.tuning.split(",") if args.tuning else DEFAULT_TUNING.get(args.instrument, [])
+        tuning = tuple(parse_pitch(n.strip()) for n in names)
+        low = parse_pitch(args.low)
+        found = voicings(args.chord, args.style, tuning=tuning, frets=DEFAULT_FRETS.get(args.instrument, 0),
+                         low=low, limit=args.max)
+    except ValueError as e:
+        print(f"[error] {e}", file=sys.stderr)
+        return 1
+    if not fretted:
+        lo, hi = FIXED_RANGE[args.instrument]
+        found = [v for v in found if lo <= v.pitches[0] and v.pitches[-1] <= hi]
+
+    if args.json:
+        print(json.dumps([{"notes": v.notes, "shape": v.shape or None} for v in found], indent=1))
+        return 0 if found else 1
+    on = f"{args.instrument} ({' '.join(pitch_name(t) for t in tuning)})" if fretted else \
+        f"{args.instrument}, from {args.low} up"
+    if not found:
+        print(f"no playable {args.style} voicing of {args.chord} on {on}")
+        return 1
+    print(f"{args.chord} {args.style} voicings on {on}, easiest first:")
+    for v in found:
+        print(f"  {v.shape:<18} {v.notes}" if fretted else f"  {v.notes}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="beat", description="Beat song toolchain (spec v0.1)")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -155,6 +190,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--parts", help="comma-separated part ids (solo)")
     p.add_argument("--sections", help="comma-separated section ids")
     p.set_defaults(func=cmd_render)
+
+    p = sub.add_parser("voicing", help="list playable voicings of a chord to paste into notes")
+    p.add_argument("chord", help="chord symbol, e.g. Am, G/B, C7")
+    p.add_argument("style", nargs="?", choices=["full", "power"], default="full",
+                   help="full: every chord tone (default); power: root, fifth, octave")
+    p.add_argument("--for", dest="instrument", choices=["guitar", "bass", "organ", "piano"], default="guitar")
+    p.add_argument("--tuning", help="guitar/bass strings low to high, e.g. D2,A2,D3,G3,B3,E4")
+    p.add_argument("--low", default="C3", help="organ/piano: lowest note of the voicing (default C3)")
+    p.add_argument("--max", type=int, default=6, help="how many voicings to list (default 6)")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_voicing)
 
     args = parser.parse_args(argv)
     return args.func(args)

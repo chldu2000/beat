@@ -50,8 +50,11 @@ def _pitch_class(name: str) -> int:
     return (_STEP[name[0]] + name[1:].count("#") - name[1:].count("b")) % 12
 
 
-def parse_chord(symbol: str) -> frozenset[int] | None:
-    """Chord symbol to the set of its pitch classes; None for N.C. Raises ValueError."""
+def chord_tones(symbol: str) -> tuple[int, tuple[int, ...], int] | None:
+    """Chord symbol to (root pitch class, intervals above the root, bass pitch class); None for N.C.
+
+    Raises ValueError.
+    """
     if symbol == "N.C.":
         return None
     m = _CHORD_RE.match(symbol)
@@ -61,7 +64,13 @@ def parse_chord(symbol: str) -> frozenset[int] | None:
                          f"{suffixes}, or nothing for major; optional /bass; N.C. for no chord)")
     root, quality, bass = m.groups()
     r = _pitch_class(root)
-    pcs = {(r + i) % 12 for i in _QUALITIES[quality or ""]}
-    if bass:
-        pcs.add(_pitch_class(bass))
-    return frozenset(pcs)
+    return r, _QUALITIES[quality or ""], _pitch_class(bass) if bass else r
+
+
+def parse_chord(symbol: str) -> frozenset[int] | None:
+    """Chord symbol to the set of its pitch classes; None for N.C. Raises ValueError."""
+    tones = chord_tones(symbol)
+    if tones is None:
+        return None
+    root, intervals, bass = tones
+    return frozenset({(root + i) % 12 for i in intervals} | {bass})

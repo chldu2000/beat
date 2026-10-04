@@ -1,0 +1,11 @@
+{
+  "tasks": "t3,t4",
+  "runs": 3,
+  "model": "sonnet",
+  "jobs": 1,
+  "budget": 3.0,
+  "timeout": 1800,
+  "label": "voicing-add",
+  "grade_only": null,
+  "resume": null
+}

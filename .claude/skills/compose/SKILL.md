@@ -16,6 +16,9 @@ authoritative format reference — read it before writing. `examples/demo.beat.y
   Use it to confirm the file says what you meant.
 - `beat events SONG [--bars 5-8] [--parts a,b] [--sections x,y]` — one line per note with bar, beat,
   length, velocity and performed time. Add `--json` for the full event data.
+- `beat voicing CHORD [full|power] [--for guitar|organ|piano]` — playable voicings of a chord symbol
+  (guitar: fret shape and notes, easiest first). Paste the notes into `notes` instead of working out
+  chord shapes yourself.
 
 ## Workflow
 
@@ -26,6 +29,7 @@ authoritative format reference — read it before writing. `examples/demo.beat.y
 4. **Fix every error.** Read warnings too and fix the ones that are real mistakes.
 5. **Check intent** with `beat events --by-bar --bars …` on bars you are unsure about (rhythms, ties,
    repeats, drum grids).
-6. Keep repeated material in `patterns` and vary it with `replace`, so later edits stay local.
+6. Keep repeated material in `patterns` and vary it with `replace` (whole bars, optionally
+   transposed) and, for drums, `add` (extra hits such as a crash), so later edits stay local.
 
 When editing an existing song, change only what was asked and keep everything else identical.
