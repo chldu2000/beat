@@ -1,0 +1,9 @@
+id: t2-transcribe-tricky
+kind: transcribe
+reference: evals/refs/tricky.beat.yaml
+prompt: |
+  Write song.beat.yaml so that it plays exactly the music described below: same parts (use the
+  part ids given), tempo, notes, rhythms, articulations and dynamics. Structure the file however
+  you like (sections, patterns, ...), but the compiled notes must match the description.
+
+  {description}

@@ -1,0 +1,70 @@
+beat: 0.1
+
+meta:
+  title: Song
+  time: 4/4
+  tempo: 104
+
+instruments:
+  dr:  { type: drums }
+  bs:  { type: bass }
+  gt:  { type: guitar, tone: crunch }
+
+patterns:
+  drum_main:
+    type: drums
+    bars: 1
+    hits: |
+      bd: 1 2.5 3
+      sd: 2!acc 4!acc
+      hh: every 0.5
+
+  drum_fill:
+    type: drums
+    bars: 1
+    hits: |
+      bd: 1 3
+      sd: 2!acc 3 3.25 3.5 3.75
+      hh: 1 1.5 2 2.5
+      t2: 4 4.25
+      t3: 4.5 4.75!acc
+
+  drum_ride:
+    type: drums
+    bars: 1
+    hits: |
+      cr: 1!acc
+      bd: 1 1.5 3 3.5
+      sd: 2!acc 4!acc
+      rd: 1.5 2 2.5 3 3.5 4 4.5
+
+sections:
+  intro:
+    bars: 4
+    dynamic: mf
+    chords: "Am | Am | F | G"
+    parts:
+      dr:
+        use: drum_main
+        replace:
+          4: { use: drum_fill }
+      bs:
+        notes: "(A1:b0.5)*8 | (A1:b0.5)*6 G1:b0.5 E1:b0.5 | F1:b1.5 F1:b2.5 | G1:b1.5 G1:b0.5 r:b0.5 G1:b0.5!acc G1:b1"
+      gt:
+        notes: "A2:b0.5!pm A2:b0.5!pm C3:b0.5 A2:b0.5!pm D3:b0.5 A2:b0.5!pm D#3:b0.5 D3:b0.5 | (A2:b0.5!pm)*4 [G2 D3]:b0.5 [G2 D3]:b0.5 [A2 E3]:b1 | [F2 C3 F3]:b1.5 [F2 C3 F3]:b2.5 | [G2 D3 G3]:b1.5 [G2 D3 G3]:b0.5 r:b0.5 [G2 D3 G3]:b0.5!acc [G2 D3 G3]:b1"
+
+  verse:
+    bars: 4
+    dynamic: f
+    chords: "F | G | Am | E7"
+    parts:
+      dr:
+        use: drum_ride
+        replace:
+          4: { hits: "bd: 1!acc\ncr: 1!acc" }
+      bs:
+        notes: "F1:b1 F1:b0.5 F1:b0.5 C2:b1 F1:b1 | G1:b1 G1:b0.5 G1:b0.5 D2:b1 G1:b1 | A1:b1 A1:b0.5 A1:b0.5 E2:b1 A1:b1 | E1:b4"
+      gt:
+        notes: "[F2 C3 F3]:b2 [F2 C3 F3]:b0.5 [F2 C3 F3]:b0.5 [F2 C3 F3]:b1 | [G2 D3 G3]:b2 [G2 D3 G3]:b0.5 [G2 D3 G3]:b0.5 [G2 D3 G3]:b1 | [A2 E3 A3]:b2 [A2 E3 A3]:b0.5 [A2 E3 A3]:b0.5 [A2 E3 A3]:b1 | [E2 B2 E3 G#3]:b4"
+
+form: [intro, verse]

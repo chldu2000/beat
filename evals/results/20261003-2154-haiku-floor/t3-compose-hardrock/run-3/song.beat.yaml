@@ -1,0 +1,145 @@
+beat: 0.1
+
+meta:
+  title: Thunder Road
+  tempo: 130
+  time: 4/4
+  key: A major
+  style: hard rock
+
+instruments:
+  dr:  { type: drums }
+  bs:  { type: bass }
+  gt1: { type: guitar, tone: crunch }
+  gt2: { type: guitar, tone: lead }
+
+patterns:
+  beat_verse:
+    type: drums
+    bars: 1
+    grid: |
+      hh: x-x-x-x-x-x-x-x-
+      sd: ----X-------X---
+      bd: x-----x-x-x-----
+  beat_chorus:
+    type: drums
+    bars: 1
+    grid: |
+      cr: X---------------
+      sd: ----X-------X---
+      bd: x-x-x-x-x-x-x---
+  drum_fill:
+    type: drums
+    bars: 1
+    grid: |
+      hh: x-x-x-x---------
+      sd: ----X---X-X-----
+      t1: ----------x-x---
+      t2: -----------x-x--
+      bd: x---x---x-------
+  riff_a:
+    type: pitched
+    bars: 2
+    notes: "(A2:8!pm)*4 (D3:8!pm)*4 | (E3:8!pm)*8"
+  bass_verse:
+    type: pitched
+    bars: 2
+    notes: "(A1:8)*8 | (A1:8)*4 (D2:8)*4"
+  lead_chorus:
+    type: pitched
+    bars: 2
+    notes: "A4:4 C#5:8 B4:8 A4:4 G#4:4 | F#4:2 G#4:2 A4:4 B4:4"
+
+sections:
+  intro:
+    bars: 4
+    chords: "A5 | A5 | D5 | E5"
+    parts:
+      gt1:
+        notes: "[A2 E3 A3]:8!pm [A2 E3 A3]:8!pm [A2 E3 A3]:8!pm [A2 E3 A3]:8!pm [D3 A3 D4]:8!pm [D3 A3 D4]:8!pm [D3 A3 D4]:8!pm [D3 A3 D4]:8!pm | [E3 B3 E4]:8!pm [E3 B3 E4]:8!pm [E3 B3 E4]:8!pm [E3 B3 E4]:8!pm [A2 E3 A3]:8!pm [A2 E3 A3]:8!pm [A2 E3 A3]:8!pm [A2 E3 A3]:8!pm | (A2:8!pm)*4 (D3:8!pm)*4 | (E3:8!pm)*4 (A3:8!pm)*4"
+      bs:
+        notes: "(A1:8)*8 | (A1:8)*4 (D2:8)*4 | (D2:8)*8 | (E2:8)*8"
+      dr:
+        grid: |
+          hh: x---x---x---x--- | x-x-x-x-x-x-x-x- | x-x-x-x-x-x-x-x- | x-x-x-x-x-x-x-x-
+          sd: ----x------x---- | ----X---g---X-g- | ----X---g---X-g- | ----X---X-X-----
+          bd: x-------x------- | x-------x-x----- | x-----x-x-x----- | x---x---x-------
+
+  verse:
+    bars: 8
+    dynamic: mf
+    chords: "A5 | A5 | D5 | E5 | A5 | A5 | D5 | E5"
+    parts:
+      gt1:
+        notes: "([A2 E3 A3]:8!pm)*8 | ([A2 E3 A3]:8!pm)*8 | ([D3 A3 D4]:8!pm)*8 | ([E3 B3 E4]:8!pm)*8 | ([A2 E3 A3]:8!pm)*8 | ([A2 E3 A3]:8!pm)*8 | ([D3 A3 D4]:8!pm)*8 | ([E3 B3 E4]:8!pm)*6 [E3 B3 E4]:4"
+      bs:
+        notes: "(A1:8)*8 | (A1:8)*8 | (D2:8)*8 | (E2:8)*8 | (A1:8)*8 | (A1:8)*8 | (D2:8)*8 | (E2:8)*8"
+      dr:
+        use: beat_verse
+        replace:
+          8: { use: drum_fill }
+
+  chorus:
+    bars: 8
+    dynamic: f
+    chords: "A | A | D | E | A | A | D | E"
+    parts:
+      gt1:
+        notes: "[A3 E4 A4]:4~ [A3 E4 A4]:4 [A3 E4 A4]:4 r:4 | [A3 E4 A4]:4~ [A3 E4 A4]:4 [A3 E4 A4]:2 | [D3 A3 D4]:4~ [D3 A3 D4]:4 [D3 A3 D4]:4 r:4 | [E3 B3 E4]:4~ [E3 B3 E4]:4 [E3 B3 E4]:2 | [A3 E4 A4]:4~ [A3 E4 A4]:4 [A3 E4 A4]:4 r:4 | [A3 E4 A4]:4~ [A3 E4 A4]:4 [A3 E4 A4]:2 | [D3 A3 D4]:4~ [D3 A3 D4]:4 [D3 A3 D4]:4 r:4 | [E3 B3 E4]:2 [E3 B3 E4]:2"
+      gt2:
+        notes: "r:2 E5:2 | E5:4 C#5:8 B4:8 A4:4 r:4 | r:2 D5:2 | D5:4 B4:8 C#5:8 E5:2 | r:2 E5:2 | E5:4 C#5:8 B4:8 A4:4 G#4:4 | r:2 D5:2 | (E5:8 F#5:8)*4"
+      bs:
+        notes: "(A2:8)*8 | (A2:8)*8 | (D3:8)*8 | (E3:8)*8 | (A2:8)*8 | (A2:8)*8 | (D3:8)*8 | (E3:8)*8"
+      dr:
+        use: beat_chorus
+        replace:
+          8: { use: drum_fill }
+
+  verse2:
+    extends: verse
+    parts:
+      gt1:
+        notes: "([A2 E3 A3]:8!pm)*8 | ([A2 E3 A3]:8!pm)*8 | ([D3 A3 D4]:8!pm)*8 | ([E3 B3 E4]:8!pm)*8 | ([A2 E3 A3]:8!pm)*8 | ([A2 E3 A3]:8!pm)*8 | ([D3 A3 D4]:8!pm)*8 | ([E3 B3 E4]:8!pm)*8"
+
+  chorus2:
+    extends: chorus
+    parts:
+      gt2:
+        notes: "E5:4 C#5:8 B4:8 A4:4 G#4:4 | F#4:4 E4:4 F#4:2 | D5:4 C#5:8 B4:8 A4:4 B4:4 | C#5:2 D5:2 | E5:4 C#5:8 B4:8 A4:4 G#4:4 | F#4:4 E4:4 F#4:2 | D5:4 C#5:8 B4:8 A4:4 B4:4 | E5:2 D#5:2"
+
+  outro:
+    bars: 4
+    dynamic: fff
+    chords: "A5 | A5 | A5 | A5"
+    parts:
+      gt1:
+        notes: "[A2 E3 A3 E4 A4]:1~ | [A2 E3 A3 E4 A4]:1 | [A2 E3 A3 E4 A4]:1 | [A2 E3 A3 E4 A4]:1"
+      bs:
+        notes: "A1:1~ | A1:1 | A1:1 | A1:1"
+      dr:
+        grid: |
+          cr: X--------------- | X--------------- | X--------------- | X---------------
+          bd: X--------------- | X--------------- | X--------------- | X---------------
+          sd: X--------------- | X--------------- | X--------------- | X---------------
+
+form: [intro, verse, chorus, verse2, chorus2, outro]
+
+performance:
+  seed: 42
+  humanize: { timing_ms: 5, velocity: 0.05 }
+  parts:
+    dr:
+      lanes:
+        sd: { offset_ms: 7 }
+        hh: { velocity: -0.04 }
+        cr: { velocity: 0.1 }
+    bs: { offset_ms: 4 }
+    gt1: { strum_ms: 10 }
+    gt2: { strum_ms: 8 }
+
+mix:
+  dr:  { gain_db: 0 }
+  bs:  { gain_db: -2 }
+  gt1: { gain_db: -1, pan: -0.6 }
+  gt2: { gain_db: -2, pan: 0.6 }
+  master: { gain_db: 0 }

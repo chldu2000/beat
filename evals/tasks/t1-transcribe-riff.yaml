@@ -1,0 +1,9 @@
+id: t1-transcribe-riff
+kind: transcribe
+reference: evals/refs/riff.beat.yaml
+prompt: |
+  Write song.beat.yaml so that it plays exactly the music described below: same parts (use the
+  part ids given), tempo, notes, rhythms, articulations and dynamics. Structure the file however
+  you like (sections, patterns, ...), but the compiled notes must match the description.
+
+  {description}

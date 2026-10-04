@@ -1,0 +1,59 @@
+{
+  "task": "t1-transcribe-riff",
+  "run": "run-1",
+  "beat_calls": 4,
+  "validate_calls": 1,
+  "events_calls": 3,
+  "first_check_errors": 0,
+  "checks_to_green": 1,
+  "error_trace": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "error_categories_all": {},
+  "error_categories_first": {},
+  "error_examples": [],
+  "final_exists": true,
+  "final_valid": true,
+  "final_errors": [],
+  "final_warnings": 0,
+  "file_chars": 1931,
+  "bars": 8,
+  "chars_per_bar": 241,
+  "compare": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "duration_acc": 1.0,
+    "arts_acc": 1.0,
+    "dynamic_acc": 1.0,
+    "per_part_f1": {
+      "bs": 1.0,
+      "dr": 1.0,
+      "gt": 1.0
+    },
+    "missing": [],
+    "extra": [],
+    "wrong_length": []
+  },
+  "tool_calls": {
+    "Bash": 7,
+    "Write": 2
+  },
+  "other_bash": [
+    "ls; cat SPEC.md | head -300",
+    "cat SPEC.md | sed -n '300,500p'; echo \"---EXAMPLE---\"; cat examples/demo.beat.yaml"
+  ],
+  "denied": [
+    "Bash: beat events song.beat.yaml --json > /tmp/events.json && python3 -c \"\nimport json\nd = json.load(open('/tmp/events.json'))\nfor e in d['events']:\n    if e['part'] in ('bs','gt') and e['src']['secti"
+  ],
+  "cost_usd": 0.35213120000000003,
+  "turns": 10,
+  "duration_sec": 152,
+  "result_error": false,
+  "subtype": "success",
+  "output_tokens": 13925,
+  "notes": "# Notes\n\n## 1. What was hard or confusing\n\n- Figuring out exactly how a tied note (`~`) compiles was not obvious from\n  the spec text alone — it wasn't clear whether a tie produces one merged\n  event or two separate note-ons. Had to check with `beat events` to confirm\n  it merges into a single sustained event with combined duration.\n- A rhythm with a silent gap in the middle (e.g. notes landing on beat 1,\n  2.5, 3.5, 4 with nothing at beat 3) is easy to get wrong by just\n  concatenating the written note durations — you have to notice the implicit\n  rest yourself and insert an explicit `r:8`, since the DSL has no \"skip to\n  this beat\" notation.\n- The grid step size being tied to `beats * 4` (sixteenth notes) means any\n  rhythm finer than a sixteenth, or any beat subdivision that doesn't land on\n  a sixteenth boundary, has no obvious representation; luckily everything\n  here lined up on sixteenths.\n\n## 2. Workarounds\n\n- Used `r:8` (an explicit rest) to represent the silent half-beat gaps in the\n  bass/guitar bar-4 rhythms, since there is no shorthand for \"this beat\n  simply isn't played.\"\n- Represented \"a note that's 2.5 beats long\" as a tie between a half note and\n  an eighth note (`F1:2~ F1:8`), since there's no single duration token for\n  2.5 beats.\n- For drum bars that are identical across several bars, split them into\n  one-bar `patterns` (`groove_a`, `groove_b`) and used `replace` only for the\n  bars that differ (fill, crash-in, final hit), instead of writing the full\n  4-bar grid inline.\n\n## 3. Wishlist\n\n- A duration syntax for arbitrary beat lengths (e.g. `:2.5`) instead of\n  requiring a tie across two notes for non-power-of-two lengths.\n- An explicit \"rest/gap\" shorthand that's clearer than remembering to insert\n  `r:` tokens by hand when reading a \"beat X: note\" style description.\n- `beat events` text output accepting a `--bars` filter (in addition to\n  `--sections`) would have made it faster to double check a single bar\n  without scrolling through a whole section.\n"
+}

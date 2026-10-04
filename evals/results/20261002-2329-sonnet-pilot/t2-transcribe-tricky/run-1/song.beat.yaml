@@ -1,0 +1,104 @@
+beat: 0.1
+
+meta:
+  title: Untitled
+  tempo: 92
+  time: 4/4
+  key: E minor
+
+instruments:
+  dr:  { type: drums }
+  bs:  { type: bass }
+  gt:  { type: guitar, tone: clean }
+  org: { type: organ }
+
+patterns:
+  dr_bar1:
+    type: drums
+    bars: 1
+    steps: 12
+    grid: |
+      bd: x-----x-----
+      ss: ---x-----x--
+      rd: x-xx-xx-xx-x
+  dr_bar2:
+    type: drums
+    bars: 1
+    grid: |
+      bd: x-----x---x-----
+      hh: x-x-x-x-x-x-x-x-
+      sd: ----X--g-g--X---
+  dr_bar3:
+    type: drums
+    bars: 1
+    grid: |
+      bd: x--x----x--x----
+      hh: x-x-x---x-x-x---
+      ho: ------x-------x-
+      sd: ----X-------X---
+  dr_bar4:
+    type: drums
+    bars: 1
+    grid: |
+      bd: x-------x-------
+      hp: x---x---x---x---
+      rd: x-x---x-x-x-x-x-
+      sd: ----f-------X---
+  dr_bar5:
+    type: drums
+    bars: 1
+    grid: |
+      bd: x-------x-------
+      sd: g-g-g-g-x-x-xxXX
+  dr_bar6:
+    type: drums
+    bars: 1
+    grid: |
+      bd: X---------------
+      cr: X---------------
+      sd: --------gg-gX---
+
+sections:
+  main:
+    bars: 6
+    tempo: 92
+    dynamic: mf
+    chords: "Em | Am | B7 | C | C | Em"
+    parts:
+      dr:
+        use: dr_bar1
+        replace:
+          2: { use: dr_bar2 }
+          3: { use: dr_bar3 }
+          4: { use: dr_bar4 }
+          5: { use: dr_bar5 }
+          6: { use: dr_bar6 }
+      bs:
+        dynamic: mf
+        notes: >-
+          E1:4. E1:8 r:4 B1:8 D2:8 |
+          (A1:8t)*3 A1:4 r:2 |
+          B1:2~ B1:8 A1:8 G1:4 |
+          C2:1~ |
+          C2:2 r:2 |
+          r:2 (E1:16)*4 E1:4!st
+      gt:
+        dynamic: p
+        notes: >-
+          E3:8t G3 B3 E4 D4 B3 G3:4 r:4 |
+          A3:16 B3 C4 D4 E4:8. D4:16 C4:4. r:8 |
+          @f B3:2!bend=1 A3:4!sl G3:4!vib |
+          E3:1~ |
+          E3:2 [E3 G3 B3]:4!st [E3 G3 B3]:4!st |
+          @mf r:2 E4:16!h D4:16!p E4:16!h D4:16!p B3:4
+      org:
+        dynamic: pp
+        notes: >-
+          [E3 G3 B3]:1~ |
+          [E3 G3 B3]:2 [C3 E3 A3]:2 |
+          [B2 D#3 F#3]:1 |
+          [C3 E3 G3]:1~ |
+          [C3 E3 G3]:1 |
+          r:1
+
+form: [main]

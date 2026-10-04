@@ -1,0 +1,63 @@
+beat: 0.1
+
+meta:
+  title: Riff
+  tempo: 104
+  time: 4/4
+
+instruments:
+  dr: { type: drums }
+  bs: { type: bass }
+  gt: { type: guitar, tone: crunch }
+
+sections:
+  verse1:
+    bars: 4
+    chords: Am | Am | F | G
+    parts:
+      dr:
+        grid: |
+          hh: x-x-x-x-x-x-x-x- | x-x-x-x-x-x-x-x- | x-x-x-x-x-x-x-x- | x-x-x---x---x-x-
+          sd: ----X-------X--- | ----X-------X--- | ----X-------X--- | ----X-------xxxx
+          bd: x-x-x---x-x----- | x-x-x---x-x----- | x-x-x---x-x----- | x-x---x-x-------
+          t2: -------- -------- | -------- -------- | -------- -------- | -------- --xx----
+          t3: -------- -------- | -------- -------- | -------- -------- | -------- -----x-X
+        dynamic: mf
+      bs:
+        dynamic: mf
+        notes: >-
+          (A1:8)*8 |
+          (A1:8)*6 G1:8 E1:8 |
+          F1:4. F1:2 F1:8 |
+          G1:4. G1:8 r:8 G1:8 G1:4
+      gt:
+        dynamic: mf
+        notes: >-
+          A2:8!pm A2:8!pm C3:8 A2:8!pm D3:8 A2:8!pm D#3:8 D3:8 |
+          A2:8!pm A2:8!pm A2:8!pm A2:8!pm [G2 D3]:8 [G2 D3]:8 [A2 E3]:4 |
+          [F2 C3 F3]:4. [F2 C3 F3]:2 [F2 C3 F3]:8 |
+          [G2 D3 G3]:4. [G2 D3 G3]:8 r:8 [G2 D3 G3]:8 [G2 D3 G3]:4
+
+  verse2:
+    bars: 4
+    chords: F | G | Am | E7
+    parts:
+      dr:
+        grid: |
+          cr: X--------------- | -------- -------- | -------- -------- | X---------------
+          rd: --x-x-x-x-x-x-x- | x-x-x-x-x-x-x-x- | x-x-x-x-x-x-x-x- | ----------------
+          sd: ----X-------X--- | ----X-------X--- | ----X-------X--- | ----------------
+          bd: x-x-----x-x----- | x-x-----x-x----- | x-x-----x-x----- | X---------------
+        dynamic: f
+      bs:
+        dynamic: f
+        notes: "F1:4 F1:8 F1:8 C2:4 F1:4 | G1:4 G1:8 G1:8 D2:4 G1:4 | A1:4 A1:8 A1:8 E2:4 A1:4 | E1:1"
+      gt:
+        dynamic: f
+        notes: |
+          [F2 C3 F3]:2 [F2 C3 F3]:8 [F2 C3 F3]:8 [F2 C3 F3]:4 |
+          [G2 D3 G3]:2 [G2 D3 G3]:8 [G2 D3 G3]:8 [G2 D3 G3]:4 |
+          [A2 E3 A3]:2 [A2 E3 A3]:8 [A2 E3 A3]:8 [A2 E3 A3]:4 |
+          [E2 B2 E3 G#3]:1
+
+form: [verse1, verse2]

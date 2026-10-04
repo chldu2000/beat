@@ -1,0 +1,65 @@
+beat: 0.1
+
+meta:
+  title: Riff (needs fixing)
+  tempo: 104
+  time: 4/4
+  key: A minor
+
+instruments:
+  dr: { type: drums }
+  bs: { type: bass }
+  gt: { type: guitar, tone: crunch }
+
+patterns:
+  groove:
+    type: drums
+    bars: 1
+    grid: |
+      hh: x-x-x-x-x-x-x-x-
+      sd: ----X-------X---
+      bd: x-----x-x-------
+  fill:
+    type: drums
+    bars: 1
+    grid: |
+      hh: x-x-x-x---------
+      sd: ----X---xxxx----
+      t2: ------------xx--
+      t3: --------------xX
+      bd: x-------x-------
+
+sections:
+  a:
+    bars: 4
+    chords: "Am | Am | F"
+    parts:
+      gt:
+        notes: >-
+          A2:8!pm A2!palm C3 A2!pm D3 A2!pm Eb3 D3 |
+          (A2:8!pm)*4 [G2 D3]:8 [G2 D3] [A2 E3]:4 |
+          [F2 C3 F3]:4. [F2 C3 F3]:8~ [F2 C3 F3]:2 |
+          [G2 D3 G3]:4. [G2 D3 G3]:8 r:8 [G2 D3 G3]:8!acc [G2 D3 G3]:4
+      bs:
+        notes: "(A1:8)*8 | (A1:8)*6 G0:8 E1:8 | F1:4. F1:8~ G1:2 | G1:4. G1:8 r:8 G1:8!acc G1:4"
+      dr:
+        use: grove
+        replace: { 4: { use: fill } }
+
+  b:
+    bars: 4
+    dynamic: f
+    chords: "F | G | Am | E7"
+    parts:
+      gt:
+        notes: [F2 C3 F3]:2 [F2 C3 F3]:8 [F2 C3 F3] [F2 C3 F3]:4 | [G2 D3 G3]:2 [G2 D3 G3]:8 [G2 D3 G3] [G2 D3 G3]:4 | [A2 E3 A3]:2 [A2 E3 A3]:8 [A2 E3 A3] [A2 E3 A3]:4 | [E2 B2 E3 G#3]:1
+      bs:
+        notes: "F1:4 F1:8 F1 C2:4 F1:4 | G1:4 G1:8 G1 D2:4 G1:4 | A1:4 A1:8 A1 E2:4 A1:4 | E1:1"
+      dr:
+        grid: |
+          cr: X--------------- | ---------------- | ---------------- | X---------------
+          rd: --x-x-x-x-x-x-x- | x-x-x-x-x-x-x-x- | x-x-x-x-x-x-x-x- | ----------------
+          sd: ----X-------X--- | ----X-------X--- | ----X-------X--- | ----------------
+          bd: x-x-----x-x----- | x-x-----x-x------ | x-x-----x-x----- | X---------------
+
+form: [a, b]

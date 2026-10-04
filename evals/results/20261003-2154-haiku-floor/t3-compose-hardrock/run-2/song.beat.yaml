@@ -1,0 +1,145 @@
+beat: 0.1
+
+meta:
+  title: Thunder Down Under
+  tempo: 130
+  time: 4/4
+  key: A major
+  style: hard rock
+
+instruments:
+  dr:  { type: drums }
+  bs:  { type: bass }
+  gt1: { type: guitar, tone: crunch }
+  gt2: { type: guitar, tone: lead }
+
+patterns:
+  beat_verse:
+    type: drums
+    bars: 1
+    grid: |
+      hh: x-x-x-x-x-x-x-x-
+      sd: ----X-------X---
+      bd: x-------x-x-----
+
+  beat_chorus:
+    type: drums
+    bars: 1
+    grid: |
+      hh: x-x-x-x-x-x-x-x-
+      sd: ----X-------X---
+      bd: x-x-----x-x-x---
+
+  fill:
+    type: drums
+    bars: 1
+    grid: |
+      t1: ----x---
+      t2: ----x-x-
+      t3: --------
+      bd: x-------
+      sd: ----X--X
+
+sections:
+  intro:
+    bars: 4
+    chords: "A5 | F#5 | A5 | E5"
+    parts:
+      gt1:
+        notes: >-
+          [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm [F#2 C#3 F#3]:4!pm [F#2 C#3 F#3]:4!pm |
+          [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm [E2 B2 E3]:4!pm [E2 B2 E3]:4!pm |
+          [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm [F#2 C#3 F#3]:4!pm [F#2 C#3 F#3]:4!pm |
+          [A2 E3 A3]:4!pm [A2 E3 A3]:2!pm [E2 B2 E3]:2!pm
+      bs:
+        notes: >-
+          A1:4 A1:4 F#1:4 F#1:4 |
+          A1:4 A1:4 E1:4 E1:4 |
+          A1:4 A1:4 F#1:4 F#1:4 |
+          A1:4 A1:2 E1:2
+      dr:
+        use: beat_verse
+        replace:
+          1: { grid: "bd: x---x---x---x---\nhh: x---x---x---x---" }
+
+  verse:
+    bars: 8
+    chords: "A5 | F#5 | A5 | E5 | A5 | F#5 | A5 | E5"
+    parts:
+      gt1:
+        notes: >-
+          [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm [F#2 C#3 F#3]:4!pm [F#2 C#3 F#3]:4!pm |
+          [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm [E2 B2 E3]:4!pm [E2 B2 E3]:4!pm |
+          [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm [F#2 C#3 F#3]:4!pm [F#2 C#3 F#3]:4!pm |
+          [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm [E2 B2 E3]:4!pm [E2 B2 E3]:4!pm |
+          [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm [F#2 C#3 F#3]:4!pm [F#2 C#3 F#3]:4!pm |
+          [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm [E2 B2 E3]:4!pm [E2 B2 E3]:4!pm |
+          [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm [F#2 C#3 F#3]:4!pm [F#2 C#3 F#3]:4!pm |
+          [A2 E3 A3]:4!pm [A2 E3 A3]:2!pm [E2 B2 E3]:2!pm
+      bs:
+        notes: >-
+          A1:4 A1:4 F#1:4 F#1:4 |
+          A1:4 A1:4 E1:4 E1:4 |
+          A1:4 A1:4 F#1:4 F#1:4 |
+          A1:4 A1:4 E1:4 E1:4 |
+          A1:4 A1:4 F#1:4 F#1:4 |
+          A1:4 A1:4 E1:4 E1:4 |
+          A1:4 A1:4 F#1:4 F#1:4 |
+          A1:4 A1:2 E1:2
+      dr:
+        use: beat_verse
+        replace:
+          8: { use: fill }
+
+  chorus:
+    bars: 8
+    dynamic: f
+    chords: "A5 | G5 | D5 | A5 | A5 | G5 | D5 | A5"
+    parts:
+      gt1:
+        notes: >-
+          [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm [G2 D3 G3]:4!pm [G2 D3 G3]:4!pm |
+          [D2 A2 D3]:4!pm [D2 A2 D3]:4!pm [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm |
+          [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm [G2 D3 G3]:4!pm [G2 D3 G3]:4!pm |
+          [D2 A2 D3]:4!pm [D2 A2 D3]:4!pm [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm |
+          [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm [G2 D3 G3]:4!pm [G2 D3 G3]:4!pm |
+          [D2 A2 D3]:4!pm [D2 A2 D3]:4!pm [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm |
+          [A2 E3 A3]:4!pm [A2 E3 A3]:4!pm [G2 D3 G3]:4!pm [G2 D3 G3]:4!pm |
+          [D2 A2 D3]:4!pm [D2 A2 D3]:4!pm [A2 E3 A3]:2!pm [A2 E3 A3]:2!pm
+      bs:
+        notes: >-
+          A1:4 A1:4 G1:4 G1:4 |
+          D1:4 D1:4 A1:4 A1:4 |
+          A1:4 A1:4 G1:4 G1:4 |
+          D1:4 D1:4 A1:4 A1:4 |
+          A1:4 A1:4 G1:4 G1:4 |
+          D1:4 D1:4 A1:4 A1:4 |
+          A1:4 A1:4 G1:4 G1:4 |
+          D1:4 D1:4 A1:2 A1:2
+      gt2:
+        notes: >-
+          r:1 | r:1 | r:1 | r:1 | r:1 | r:1 | r:1 |
+          E4:8 F#4:8 G4:8 A4:8 B4:8 A4:8 G4:8 F#4:8
+      dr:
+        use: beat_chorus
+        replace:
+          8: { use: fill }
+
+form: [intro, verse, chorus, verse, chorus]
+
+performance:
+  seed: 42
+  humanize: { timing_ms: 5, velocity: 0.04 }
+  parts:
+    dr:
+      lanes:
+        sd: { offset_ms: 5 }
+        hh: { velocity: -0.05 }
+    bs: { offset_ms: 2 }
+    gt1: { offset_ms: 1 }
+
+mix:
+  dr:  { gain_db: 0 }
+  bs:  { gain_db: -1, pan: 0 }
+  gt1: { gain_db: -2, pan: -0.4 }
+  gt2: { gain_db: -3, pan: 0.4 }

@@ -1,0 +1,140 @@
+beat: 0.1
+
+meta:
+  title: Untitled
+  tempo: 104
+  time: 4/4
+
+instruments:
+  dr:
+    type: drums
+  bs:
+    type: bass
+  gt:
+    type: guitar
+    tone: crunch
+
+sections:
+  s1:
+    bars: 1
+    chords: Am
+    parts:
+      dr:
+        grid: |
+          bd: x-----x-x-------
+          sd: ----x--------x--
+          hh: x-x-x-x-x-x-x-x-
+      bs:
+        notes: A1 A1 A1 A1
+      gt:
+        notes: A2 C3 D3 D#3
+
+  s2:
+    bars: 1
+    chords: Am
+    parts:
+      dr:
+        grid: |
+          bd: x-----x-x-------
+          sd: ----x--------x--
+          hh: x-x-x-x-x-x-x-x-
+      bs:
+        notes: A1 A1 G1 E1
+      gt:
+        notes: A2 A2 A2 A2
+
+  s3:
+    bars: 1
+    chords: F
+    parts:
+      dr:
+        grid: |
+          bd: x-----x-x-------
+          sd: ----x--------x--
+          hh: x-x-x-x-x-x-x-x-
+      bs:
+        notes: F1 F1 F1 F1
+      gt:
+        notes: F2 F2 F2 F2
+
+  s4:
+    bars: 1
+    chords: G
+    parts:
+      dr:
+        grid: |
+          bd: x-------x-------
+          sd: ----x---xxxx----
+          hh: x-x-x-x---------
+          t2: --------xx------
+          t1: ----------xx----
+      bs:
+        notes: G1 G1 G1 G1
+      gt:
+        notes: G2 G2 G2 G2
+
+  s5:
+    bars: 1
+    chords: F
+    parts:
+      dr:
+        grid: |
+          bd: x-----x-x----x--
+          sd: ----x--------x--
+          rd: x-x-x-x-x-x-x-x-
+          cr: x-----------x---
+      bs:
+        notes: F1 F1 C2 F1
+      gt:
+        notes: F2 F2 F2 F2
+
+  s6:
+    bars: 1
+    chords: G
+    parts:
+      dr:
+        grid: |
+          bd: x-----x-x----x--
+          sd: ----x--------x--
+          rd: x-x-x-x-x-x-x-x-
+      bs:
+        notes: G1 G1 D2 G1
+      gt:
+        notes: G2 G2 G2 G2
+
+  s7:
+    bars: 1
+    chords: Am
+    parts:
+      dr:
+        grid: |
+          bd: x-----x-x----x--
+          sd: ----x--------x--
+          rd: x-x-x-x-x-x-x-x-
+      bs:
+        notes: A1 A1 E2 A1
+      gt:
+        notes: A2 A2 A2 A2
+
+  s8:
+    bars: 1
+    chords: E7
+    parts:
+      dr:
+        grid: |
+          bd: x---------------
+          cr: x---------------
+      bs:
+        notes: E1 E1 E1 E1
+      gt:
+        notes: E2 E2 E2 E2
+
+form:
+  - s1
+  - s2
+  - s3
+  - s4
+  - s5
+  - s6
+  - s7
+  - s8

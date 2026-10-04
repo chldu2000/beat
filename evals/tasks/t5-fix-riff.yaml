@@ -1,0 +1,8 @@
+id: t5-fix-riff
+kind: fix
+start: evals/refs/riff_broken.beat.yaml
+reference: evals/refs/riff.beat.yaml
+prompt: |
+  song.beat.yaml was written by another composer but does not validate. Fix it so that it has no
+  errors, keeping the composer's musical intent. Where the intent is unclear, make the smallest
+  change that is consistent with the rest of the song.

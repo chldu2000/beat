@@ -1,0 +1,19 @@
+id: t4-edit-demo
+kind: edit
+start: examples/demo.beat.yaml
+prompt: |
+  song.beat.yaml contains an existing song. Make exactly these changes:
+
+  1. Add a new 4-bar section with id `bridge`, played after the second chorus and before the
+     outro. Chords: Am | C | D | B. In the bridge the drums play a half-time feel (snare only on
+     beat 3 of each bar), bass plays whole notes on the chord roots, gt1 plays one sustained power
+     chord per bar, the organ plays the chords, and gt2 is silent.
+  2. Make the snare drum lay back 10 ms more than it currently does, everywhere in the song.
+
+  Do not change anything else.
+checks:
+  form: [intro, verse, chorus, verse, chorus, bridge, outro]
+  section_bars: { bridge: 4 }
+  section_parts: { bridge: { play: [dr, bs, gt1, org], silent: [gt2] } }
+  unchanged_sections: [intro, verse, chorus, outro]
+  perf: { path: parts.dr.lanes.sd.offset_ms, equals: 16 }

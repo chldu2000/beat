@@ -11,7 +11,8 @@ def parse_pitch(name: str) -> int:
     """Scientific pitch name to MIDI number (C4 = 60). Raises ValueError."""
     m = _NOTE_RE.match(name)
     if not m:
-        raise ValueError(f"invalid pitch '{name}' (expected e.g. E2, F#3, Bb4)")
+        hint = " (note letters are uppercase)" if name[:1].islower() else ""
+        raise ValueError(f"invalid pitch '{name}'{hint} (expected e.g. E2, F#3, Bb4)")
     letter, acc, octave = m.groups()
     shift = acc.count("#") - acc.count("b")
     midi = (int(octave) + 1) * 12 + _STEP[letter] + shift
@@ -55,7 +56,9 @@ def parse_chord(symbol: str) -> frozenset[int] | None:
         return None
     m = _CHORD_RE.match(symbol)
     if not m:
-        raise ValueError(f"invalid chord symbol '{symbol}'")
+        suffixes = ", ".join(q for q in _QUALITIES if q)
+        raise ValueError(f"invalid chord symbol '{symbol}' (root A-G with optional # or b, then one of: "
+                         f"{suffixes}, or nothing for major; optional /bass; N.C. for no chord)")
     root, quality, bass = m.groups()
     r = _pitch_class(root)
     pcs = {(r + i) % 12 for i in _QUALITIES[quality or ""]}

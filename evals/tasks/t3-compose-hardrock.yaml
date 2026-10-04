@@ -1,0 +1,17 @@
+id: t3-compose-hardrock
+kind: compose
+prompt: |
+  Compose an original hard-rock song in A major in the spirit of AC/DC, and write it to
+  song.beat.yaml.
+
+  - Tempo between 120 and 135 BPM, 4/4.
+  - Parts: dr (drums), bs (bass), gt1 (rhythm guitar, crunch), gt2 (lead guitar, lead tone).
+  - 24 to 40 bars in total, at least 3 different sections, and the chorus must come back at least once.
+  - At least one drum fill leading into a chorus.
+  - gt2 plays a melodic lead or short solo in the last chorus.
+checks:
+  bars: [24, 40]
+  tempo: [120, 135]
+  parts_play: [dr, bs, gt1, gt2]
+  min_sections: 3
+  repeated_section: true

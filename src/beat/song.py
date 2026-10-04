@@ -6,8 +6,8 @@ from fractions import Fraction
 
 import yaml
 
-from .diagnostics import Diagnostics, loc
-from .notation import DYNAMICS, Item, parse_grid, parse_notes
+from .diagnostics import Diagnostics, did_you_mean, loc
+from .notation import DYNAMICS, Item, parse_grid, parse_hits, parse_notes
 from .pitch import parse_chord, parse_pitch
 
 SPEC_VERSION = "0.1"
@@ -15,9 +15,9 @@ SPEC_VERSION = "0.1"
 TOP_KEYS = {"beat", "meta", "instruments", "patterns", "sections", "form", "performance", "mix"}
 META_KEYS = {"title", "tempo", "time", "key", "style"}
 INSTRUMENT_KEYS = {"type", "tuning", "frets", "tone", "model"}
-PATTERN_KEYS = {"type", "bars", "notes", "grid", "steps"}
+PATTERN_KEYS = {"type", "bars", "notes", "grid", "hits", "steps"}
 SECTION_KEYS = {"bars", "tempo", "dynamic", "chords", "parts", "extends"}
-PART_KEYS = {"notes", "grid", "use", "steps", "transpose", "replace", "dynamic"}
+PART_KEYS = {"notes", "grid", "hits", "use", "steps", "transpose", "replace", "dynamic"}
 
 INSTRUMENT_TYPES = {"drums", "bass", "guitar", "organ", "piano"}
 DEFAULT_TUNING = {"guitar": ["E2", "A2", "D3", "G3", "B3", "E4"], "bass": ["E1", "A1", "D2", "G2"]}
@@ -66,6 +66,7 @@ class Section:
     dynamic: str
     chords: list[list[ChordSpan]] | None
     parts: dict[str, list[list[Item]]]
+    extends: str | None = None  # the section this one was derived from
 
 
 @dataclass
@@ -85,10 +86,29 @@ class Song:
         return int(self.bar_beats * 4)
 
 
+def _yaml_error(e: yaml.YAMLError, text: str) -> str:
+    """Name the line and, for the common unquoted-notation case, say exactly what to quote."""
+    mark = getattr(e, "problem_mark", None) or getattr(e, "context_mark", None)
+    lines = text.splitlines()
+    msg = f"YAML syntax error: {getattr(e, 'problem', None) or e}"
+    if mark is None:
+        return msg
+    msg = f"YAML syntax error at line {mark.line + 1}: {getattr(e, 'problem', None) or e}"
+    # The offending value is usually on the reported line or the one before it.
+    for n in (mark.line, mark.line - 1):
+        if 0 <= n < len(lines):
+            m = re.match(r"^\s*(notes|grid|chords)\s*:\s*([\[(%@!].*)$", lines[n])
+            if m:
+                return (f"{msg}. Line {n + 1}: the {m[1]} value starts with '{m[2][0]}', which YAML treats "
+                        f"as syntax; wrap it in quotes: {m[1]}: \"{m[2].strip()[:40]}...\"")
+    return f"{msg}. Line {mark.line + 1}: {lines[mark.line].strip()[:80] if mark.line < len(lines) else ''}\n" \
+           f"Hint: quote notes/grid/chords strings that start with [ ( % @ ! or contain ': '"
+
+
 def _warn_unknown(raw: dict, allowed: set[str], where: str, diags: Diagnostics) -> None:
     for k in raw:
         if k not in allowed:
-            diags.warn(where, f"unknown key '{k}' (allowed: {', '.join(sorted(allowed))})")
+            diags.warn(where, f"unknown key '{k}'{did_you_mean(k, allowed)} (allowed: {', '.join(sorted(allowed))})")
 
 
 def load_song(text: str, diags: Diagnostics) -> Song | None:
@@ -96,8 +116,7 @@ def load_song(text: str, diags: Diagnostics) -> Song | None:
     try:
         data = yaml.safe_load(text)
     except yaml.YAMLError as e:
-        diags.error("", f"YAML syntax error: {e}\nHint: quote notes/grid/chords strings, "
-                        f"especially ones starting with [ ( % @ ! or containing ': '")
+        diags.error("", _yaml_error(e, text))
         return None
     if not isinstance(data, dict):
         diags.error("", "the file must be a YAML mapping")
@@ -156,7 +175,7 @@ def load_song(text: str, diags: Diagnostics) -> Song | None:
         return None
     for i, sid in enumerate(form):
         if sid not in raw_sections:
-            diags.error(f"form[{i}]", f"unknown section '{sid}'")
+            diags.error(f"form[{i}]", f"unknown section '{sid}'{did_you_mean(sid, raw_sections)}")
     song.form = [sid for sid in form if sid in song.sections]
     if not song.form:
         return None
@@ -178,7 +197,9 @@ def _load_instruments(raw, diags: Diagnostics) -> dict[str, Instrument]:
             diags.error(where, "part id must start with a lowercase letter and use only a-z, 0-9, _")
             continue
         if not isinstance(spec, dict) or spec.get("type") not in INSTRUMENT_TYPES:
-            diags.error(where, f"instrument needs a type: {', '.join(sorted(INSTRUMENT_TYPES))}")
+            got = spec.get("type") if isinstance(spec, dict) else None
+            diags.error(where, f"instrument needs a type{did_you_mean(got, INSTRUMENT_TYPES) if got else ''}: "
+                               f"{', '.join(sorted(INSTRUMENT_TYPES))}")
             continue
         _warn_unknown(spec, INSTRUMENT_KEYS, where, diags)
         itype = spec["type"]
@@ -197,7 +218,8 @@ def _load_instruments(raw, diags: Diagnostics) -> dict[str, Instrument]:
         if itype == "guitar":
             inst.tone = spec.get("tone", "crunch")
             if inst.tone not in TONES:
-                diags.error(f"{where} > tone", f"tone must be one of {', '.join(sorted(TONES))}")
+                diags.error(f"{where} > tone", f"tone must be one of {', '.join(sorted(TONES))}"
+                                               f"{did_you_mean(inst.tone, TONES)}")
                 inst.tone = "crunch"
         out[pid] = inst
     return out
@@ -218,14 +240,13 @@ def _resolve_extends(raw, diags: Diagnostics) -> dict[str, dict]:
             continue
         parent = raw.get(parent_id)
         if not isinstance(parent, dict):
-            diags.error(f"section {sid}", f"extends unknown section '{parent_id}'")
+            diags.error(f"section {sid}", f"extends unknown section '{parent_id}'{did_you_mean(parent_id, raw)}")
             continue
         if "extends" in parent:
             diags.error(f"section {sid}", f"'{parent_id}' itself uses extends; only one level is supported")
             continue
         merged = {**parent, **sec}
         merged["parts"] = {**(parent.get("parts") or {}), **(sec.get("parts") or {})}
-        del merged["extends"]
         out[sid] = merged
     return out
 
@@ -243,10 +264,12 @@ def _load_section(sid: str, raw: dict, song: Song, patterns: dict, diags: Diagno
         tempo = song.tempo
     dynamic = raw.get("dynamic", "mf")
     if dynamic not in DYNAMICS:
-        diags.error(f"{where} > dynamic", f"unknown dynamic '{dynamic}' (use {', '.join(DYNAMICS)})")
+        diags.error(f"{where} > dynamic", f"unknown dynamic '{dynamic}'{did_you_mean(dynamic, DYNAMICS)} "
+                                          f"(use {', '.join(DYNAMICS)})")
         dynamic = "mf"
 
-    section = Section(id=sid, bars=bars, tempo=float(tempo), dynamic=dynamic, chords=None, parts={})
+    section = Section(id=sid, bars=bars, tempo=float(tempo), dynamic=dynamic, chords=None, parts={},
+                      extends=raw.get("extends"))
     if "chords" in raw:
         section.chords = _parse_chords(raw["chords"], bars, song.bar_beats, f"{sid} > chords", diags)
 
@@ -256,7 +279,8 @@ def _load_section(sid: str, raw: dict, song: Song, patterns: dict, diags: Diagno
         parts = {}
     for pid, spec in parts.items():
         if pid not in song.instruments:
-            diags.error(f"{sid} > {pid}", f"unknown part '{pid}' (declare it under instruments)")
+            diags.error(f"{sid} > {pid}", f"unknown part '{pid}'{did_you_mean(pid, song.instruments)} "
+                                          f"(declare it under instruments)")
             continue
         section.parts[pid] = _load_part(spec, song.instruments[pid], section, song, patterns, diags)
     return section
@@ -291,11 +315,11 @@ def _parse_chords(raw, bars: int, bar_beats: Fraction, where: str,
 
 def _parse_bars(spec: dict, inst: Instrument, n_bars: int, level: float, song: Song,
                 where: str, diags: Diagnostics) -> list[list[Item]]:
-    """Parse one `notes` or `grid` block that must span exactly n_bars."""
+    """Parse one `notes`, `grid` or `hits` block that must span exactly n_bars."""
     empty: list[list[Item]] = [[] for _ in range(n_bars)]
     if inst.pitched:
-        if "grid" in spec:
-            diags.error(where, f"'{inst.type}' is a pitched instrument; use 'notes', not 'grid'")
+        if "grid" in spec or "hits" in spec:
+            diags.error(where, f"'{inst.type}' is a pitched instrument; use 'notes', not 'grid' or 'hits'")
             return empty
         text = spec.get("notes")
         if not isinstance(text, str):
@@ -307,17 +331,24 @@ def _parse_bars(spec: dict, inst: Instrument, n_bars: int, level: float, song: S
             diags.error(where, f"{len(bars)} bars written, expected {n_bars}")
     else:
         if "notes" in spec:
-            diags.error(where, "drums use 'grid', not 'notes'")
+            diags.error(where, "drums use 'grid' or 'hits', not 'notes'")
             return empty
-        text = spec.get("grid")
+        if ("grid" in spec) == ("hits" in spec):
+            diags.error(where, "drums need exactly one of 'grid' or 'hits'")
+            return empty
+        key = "hits" if "hits" in spec else "grid"
+        text = spec[key]
         if not isinstance(text, str):
-            diags.error(where, "'grid' must be a string")
+            diags.error(where, f"'{key}' must be a string")
             return empty
-        steps = spec.get("steps", song.default_steps)
-        if not isinstance(steps, int) or steps <= 0:
-            diags.error(where, f"'steps' must be a positive integer, got {steps!r}")
-            return empty
-        bars, problems = parse_grid(text, song.bar_beats, steps, level, n_bars)
+        if key == "hits":
+            bars, problems = parse_hits(text, song.bar_beats, level, n_bars)
+        else:
+            steps = spec.get("steps", song.default_steps)
+            if not isinstance(steps, int) or steps <= 0:
+                diags.error(where, f"'steps' must be a positive integer, got {steps!r}")
+                return empty
+            bars, problems = parse_grid(text, song.bar_beats, steps, level, n_bars)
 
     for bi, msg in problems:
         diags.error(loc(where, f"bar {bi + 1}" if bi is not None else None), msg)
@@ -329,19 +360,19 @@ def _load_part(spec, inst: Instrument, section: Section, song: Song, patterns: d
     where = f"{section.id} > {inst.id}"
     empty: list[list[Item]] = [[] for _ in range(section.bars)]
     if not isinstance(spec, dict):
-        diags.error(where, "part must be a mapping with one of notes / grid / use")
+        diags.error(where, "part must be a mapping with one of notes / grid / hits / use")
         return empty
     _warn_unknown(spec, PART_KEYS, where, diags)
 
     dynamic = spec.get("dynamic", section.dynamic)
     if dynamic not in DYNAMICS:
-        diags.error(f"{where} > dynamic", f"unknown dynamic '{dynamic}'")
+        diags.error(f"{where} > dynamic", f"unknown dynamic '{dynamic}'{did_you_mean(dynamic, DYNAMICS)}")
         dynamic = section.dynamic
     level = DYNAMICS[dynamic]
 
-    sources = [k for k in ("notes", "grid", "use") if k in spec]
+    sources = [k for k in ("notes", "grid", "hits", "use") if k in spec]
     if len(sources) != 1:
-        diags.error(where, f"part needs exactly one of notes / grid / use, got {sources or 'none'}")
+        diags.error(where, f"part needs exactly one of notes / grid / hits / use, got {sources or 'none'}")
         return empty
 
     if "use" in spec:
@@ -367,7 +398,7 @@ def _load_part(spec, inst: Instrument, section: Section, song: Song, patterns: d
             diags.error(f"{where} > replace", f"invalid bar range '{key}' (section has {section.bars} bars)")
             continue
         if not isinstance(rspec, dict):
-            diags.error(f"{where} > replace {key}", "replacement must be a mapping with notes, grid or use")
+            diags.error(f"{where} > replace {key}", "replacement must be a mapping with notes, grid, hits or use")
             continue
         rwhere = f"{where} > replace {key}"
         n = last - first + 1
@@ -385,9 +416,9 @@ def _pattern_bars(name, inst: Instrument, n_bars: int, level: float, song: Song,
     empty: list[list[Item]] = [[] for _ in range(n_bars)]
     pat = patterns.get(name)
     if not isinstance(pat, dict):
-        diags.error(where, f"unknown pattern '{name}'")
+        diags.error(where, f"unknown pattern '{name}'{did_you_mean(name, patterns)}")
         return empty
-    ptype = pat.get("type", "drums" if "grid" in pat else "pitched")
+    ptype = pat.get("type", "drums" if "grid" in pat or "hits" in pat else "pitched")
     if ptype not in ("drums", "pitched") or (ptype == "drums") != (inst.type == "drums"):
         diags.error(where, f"pattern '{name}' is type '{ptype}' but '{inst.id}' is {inst.type}")
         return empty

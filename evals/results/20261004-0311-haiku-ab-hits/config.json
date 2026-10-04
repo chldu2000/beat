@@ -1,0 +1,11 @@
+{
+  "tasks": "t1,t2",
+  "runs": 3,
+  "model": "haiku",
+  "jobs": 1,
+  "budget": 2.0,
+  "timeout": 1800,
+  "label": "ab-hits",
+  "grade_only": null,
+  "resume": null
+}

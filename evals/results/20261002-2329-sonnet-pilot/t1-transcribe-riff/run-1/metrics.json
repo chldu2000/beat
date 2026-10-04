@@ -1,0 +1,62 @@
+{
+  "task": "t1-transcribe-riff",
+  "run": "run-1",
+  "beat_calls": 7,
+  "validate_calls": 2,
+  "events_calls": 5,
+  "first_check_errors": 0,
+  "checks_to_green": 1,
+  "error_trace": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "error_categories_all": {},
+  "error_categories_first": {},
+  "error_examples": [],
+  "final_exists": true,
+  "final_valid": true,
+  "final_errors": [],
+  "final_warnings": 0,
+  "file_chars": 2260,
+  "bars": 8,
+  "chars_per_bar": 282,
+  "compare": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "duration_acc": 1.0,
+    "arts_acc": 1.0,
+    "dynamic_acc": 1.0,
+    "per_part_f1": {
+      "bs": 1.0,
+      "dr": 1.0,
+      "gt": 1.0
+    },
+    "missing": [],
+    "extra": [],
+    "wrong_length": []
+  },
+  "tool_calls": {
+    "Bash": 7,
+    "Read": 1,
+    "Write": 2
+  },
+  "other_bash": [
+    "ls; echo \"---\"; cat SPEC.md"
+  ],
+  "denied": [
+    "Bash: beat events song.beat.yaml --parts bs --sections sectionA --json | python3 -m json.tool | head -100"
+  ],
+  "cost_usd": 0.41232460000000004,
+  "turns": 11,
+  "duration_sec": 161,
+  "result_error": false,
+  "subtype": "success",
+  "output_tokens": 17087,
+  "notes": "# Notes\n\n## 1. What was hard or confusing\n\n- There's no notation token for an arbitrary beat length like 2.5 beats (only\n  `1 2 4 8 16 32` plus dot/triplet). Figuring out that a tie (`~`) between two\n  notes of the same pitch is the intended way to build a non-standard duration\n  took some thought, and isn't spelled out as an explicit technique in the spec\n  (it's only shown tying across a barline).\n- The spec doesn't say explicitly whether `!acc`/`!pm` etc. persist to\n  following notes the way duration and velocity do. I assumed articulations\n  are per-note only (not \"sticky\"), which matched the intended transcription,\n  but it would be good to confirm this in the spec.\n- Figuring out how to express a mid-bar silence (a rest between two attacks\n  where the beat-grid specifies exact start times) required manually computing\n  gaps rather than being able to just place notes \"at\" beat positions.\n\n## 2. Workarounds\n\n- Used `F1:2~ F1:8` (and similarly for guitar chords) to express a single\n  sustained note of 2.5 beats, since no single duration token covers that\n  length.\n- Inserted an explicit `r:8` rest in bass/guitar bar 4 to represent the silent\n  half-beat between the second and third attacks (beat 3.0–3.5), since notes\n  are specified as a contiguous sequence rather than by absolute position.\n- Split the song into two `sections` (bars 1-4, bars 5-8) specifically because\n  the `dynamic` (mf → f) changes at bar 5 for every part; this let the section\n  default velocity handle it instead of per-note `@` markers.\n- Built small one-bar drum `patterns` (`beat_a`, `fill_a`, `ride_beat`,\n  `crash_start`, `ending_hit`) and used `replace` for the bars that differ,\n  rather than writing one long grid per section.\n\n## 3. Wishlist\n\n- A duration token/shorthand for arbitrary tied lengths (e.g. `:2.5`) so ties\n  aren't needed just to express a plain sustained note.\n- A way to place a note/rest at an explicit beat position within a bar (e.g.\n  `@2.5 F1:1`) instead of having to compute rests and offsets by hand to keep\n  a bar's total duration exact.\n- `beat events` output showing the source `notes`/`grid` token alongside each\n  event (not just bar/beat) would make cross-checking faster.\n"
+}

@@ -5,7 +5,7 @@ from fractions import Fraction
 
 import numpy as np
 
-from .diagnostics import Diagnostics, loc
+from .diagnostics import Diagnostics, did_you_mean, loc
 from .notation import fmt_beats
 from .pitch import parse_pitch, pitch_name
 from .song import Section, Song
@@ -191,7 +191,8 @@ def _apply_performance(compiled: Compiled, diags: Diagnostics) -> None:
         diags.error("performance", "'performance' must be a mapping")
     for k in perf:
         if k not in PERF_KEYS:
-            diags.warn("performance", f"unknown key '{k}' (allowed: {', '.join(sorted(PERF_KEYS))})")
+            diags.warn("performance", f"unknown key '{k}'{did_you_mean(k, PERF_KEYS)} "
+                                      f"(allowed: {', '.join(sorted(PERF_KEYS))})")
 
     seed = int(_num(perf.get("seed"), 0, "performance > seed", diags))
     rng = np.random.default_rng(seed)
@@ -200,11 +201,11 @@ def _apply_performance(compiled: Compiled, diags: Diagnostics) -> None:
     parts_cfg = perf.get("parts") or {}
     for pid, cfg in parts_cfg.items():
         if pid not in song.instruments:
-            diags.error(f"performance > parts > {pid}", f"unknown part '{pid}'")
+            diags.error(f"performance > parts > {pid}", f"unknown part '{pid}'{did_you_mean(pid, song.instruments)}")
         elif isinstance(cfg, dict):
             for k in cfg:
                 if k not in PART_PERF_KEYS:
-                    diags.warn(f"performance > parts > {pid}", f"unknown key '{k}'")
+                    diags.warn(f"performance > parts > {pid}", f"unknown key '{k}'{did_you_mean(k, PART_PERF_KEYS)}")
 
     edits = _load_edits(perf.get("edits") or [], song, diags)
     edit_hits = [0] * len(edits)
@@ -282,12 +283,12 @@ def _load_edits(raw, song: Song, diags: Diagnostics) -> list[dict]:
             continue
         for k in ed:
             if k not in EDIT_KEYS:
-                diags.warn(where, f"unknown key '{k}'")
+                diags.warn(where, f"unknown key '{k}'{did_you_mean(k, EDIT_KEYS)}")
         if ed.get("part") not in song.instruments:
-            diags.error(where, f"unknown part {ed.get('part')!r}")
+            diags.error(where, f"unknown part {ed.get('part')!r}{did_you_mean(ed.get('part'), song.instruments)}")
             continue
         if ed.get("section") not in song.sections:
-            diags.error(where, f"unknown section {ed.get('section')!r}")
+            diags.error(where, f"unknown section {ed.get('section')!r}{did_you_mean(ed.get('section'), song.sections)}")
             continue
         if not isinstance(ed.get("bar"), int) or not isinstance(ed.get("beat"), (int, float)):
             diags.error(where, "edit needs integer 'bar' and numeric 'beat' (1 = downbeat)")

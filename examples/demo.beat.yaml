@@ -18,28 +18,28 @@ patterns:
   beat_verse:
     type: drums
     bars: 1
-    grid: |
-      hh: x-x-x-x-x-x-x-x-
-      sd: ----X--g----X-g-
-      bd: x-------x-x-----
+    hits: |
+      hh: every 0.5
+      sd: 2!acc 2.75!ghost 4!acc 4.5!ghost
+      bd: 1 3 3.5
   beat_chorus:
     type: drums
     bars: 1
-    grid: |
-      cr: X---------------
-      rd: --x-x-x-x-x-x-x-
-      sd: ----X-------X---
-      bd: x-x-----x-x-----
+    hits: |
+      cr: 1!acc
+      rd: 1.5 2 2.5 3 3.5 4 4.5
+      sd: 2!acc 4!acc
+      bd: 1 1.5 3 3.5
   fill:
     type: drums
     bars: 1
-    grid: |
-      hh: x-x-x-x---------
-      sd: ----X---xx------
-      t1: ----------xx----
-      t2: ------------xx--
-      t3: --------------xX
-      bd: x-------x-------
+    hits: |
+      hh: 1 1.5 2 2.5
+      sd: 2!acc 3 3.25
+      t1: 3.5 3.75
+      t2: 4 4.25
+      t3: 4.5 4.75!acc
+      bd: 1 3
   riff:
     type: pitched
     bars: 2
@@ -61,7 +61,7 @@ sections:
       dr:
         use: beat_verse
         replace:
-          1-2: { grid: "hh: x---x---x---x--- | x---x---x---x---" }
+          1-2: { hits: "hh: 1 2 3 4 | 1 2 3 4" }
           4: { use: fill }
 
   verse:
@@ -121,9 +121,9 @@ sections:
       bs: { notes: "E1:1~ | E1:1" }
       org: { notes: "[E3 G3 B3 E4]:1~ | [E3 G3 B3 E4]:1" }
       dr:
-        grid: |
-          cr: X--------------- | ----------------
-          bd: X--------------- | ----------------
+        hits: |
+          cr: 1!acc |
+          bd: 1!acc |
 
 form: [intro, verse, chorus, verse, chorus, outro]
 

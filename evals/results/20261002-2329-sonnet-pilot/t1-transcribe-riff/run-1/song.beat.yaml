@@ -1,0 +1,107 @@
+beat: 0.1
+
+meta:
+  title: Riff Transcription
+  tempo: 104
+  time: 4/4
+  key: A minor
+  style: rock
+
+instruments:
+  dr: { type: drums }
+  bs: { type: bass }
+  gt: { type: guitar, tone: crunch }
+
+patterns:
+  beat_a:
+    type: drums
+    bars: 1
+    grid: |
+      hh: x-x-x-x-x-x-x-x-
+      sd: ----X-------X---
+      bd: x-----x-x-------
+  fill_a:
+    type: drums
+    bars: 1
+    grid: |
+      hh: x-x-x-x---------
+      sd: ----X---xxxx----
+      t2: ------------xx--
+      t3: --------------xX
+      bd: x-------x-------
+  ride_beat:
+    type: drums
+    bars: 1
+    grid: |
+      rd: x-x-x-x-x-x-x-x-
+      sd: ----X-------X---
+      bd: x-x-----x-x-----
+  crash_start:
+    type: drums
+    bars: 1
+    grid: |
+      cr: X---------------
+      rd: --x-x-x-x-x-x-x-
+      sd: ----X-------X---
+      bd: x-x-----x-x-----
+  ending_hit:
+    type: drums
+    bars: 1
+    grid: |
+      cr: X---------------
+      bd: X---------------
+
+sections:
+  sectionA:
+    bars: 4
+    tempo: 104
+    dynamic: mf
+    chords: "Am | Am | F | G"
+    parts:
+      dr:
+        use: beat_a
+        replace:
+          4: { use: fill_a }
+      bs:
+        notes: >-
+          (A1:8)*8 |
+          (A1:8)*6 G1:8 E1:8 |
+          F1:4. F1:2~ F1:8 |
+          G1:4. G1:8 r:8 G1:8!acc G1:4
+      gt:
+        notes: >-
+          A2:8!pm A2:8!pm C3:8 A2:8!pm D3:8 A2:8!pm D#3:8 D3:8 |
+          A2:8!pm A2:8!pm A2:8!pm A2:8!pm [G2 D3]:8 [G2 D3]:8 [A2 E3]:4 |
+          [F2 C3 F3]:4. [F2 C3 F3]:2~ [F2 C3 F3]:8 |
+          [G2 D3 G3]:4. [G2 D3 G3]:8 r:8 [G2 D3 G3]:8!acc [G2 D3 G3]:4
+
+  sectionB:
+    bars: 4
+    tempo: 104
+    dynamic: f
+    chords: "F | G | Am | E7"
+    parts:
+      dr:
+        use: ride_beat
+        replace:
+          1: { use: crash_start }
+          4: { use: ending_hit }
+      bs:
+        notes: >-
+          F1:4 F1:8 F1:8 C2:4 F1:4 |
+          G1:4 G1:8 G1:8 D2:4 G1:4 |
+          A1:4 A1:8 A1:8 E2:4 A1:4 |
+          E1:1
+      gt:
+        notes: >-
+          [F2 C3 F3]:2 [F2 C3 F3]:8 [F2 C3 F3]:8 [F2 C3 F3]:4 |
+          [G2 D3 G3]:2 [G2 D3 G3]:8 [G2 D3 G3]:8 [G2 D3 G3]:4 |
+          [A2 E3 A3]:2 [A2 E3 A3]:8 [A2 E3 A3]:8 [A2 E3 A3]:4 |
+          [E2 B2 E3 G#3]:1
+
+form: [sectionA, sectionB]
+
+mix:
+  dr: { gain_db: 0 }
+  bs: { gain_db: -1 }
+  gt: { gain_db: -2 }

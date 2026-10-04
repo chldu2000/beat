@@ -1,0 +1,10 @@
+{
+  "tasks": "t1",
+  "runs": 1,
+  "model": "sonnet",
+  "jobs": 1,
+  "budget": 2.0,
+  "timeout": 1200,
+  "label": "smoke2",
+  "grade_only": null
+}

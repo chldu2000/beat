@@ -1,0 +1,51 @@
+beat: 0.1
+
+meta:
+  title: Riff
+  tempo: 104
+  time: 4/4
+
+instruments:
+  dr:  { type: drums }
+  bs:  { type: bass }
+  gt:  { type: guitar, tone: crunch }
+
+sections:
+  A:
+    bars: 4
+    chords: "Am | Am | F | G"
+    parts:
+      dr:
+        dynamic: mf
+        hits: |
+          hh: every 0.5 | every 0.5 | every 0.5 | 1 1.5
+          sd: 2!acc 4!acc | 2!acc 4!acc | 2!acc 4!acc | 2!acc 2.5
+          bd: 1 2.5 3 | 1 2.5 3 | 1 2.5 3 | 1 2.5 3
+          t2: | | | 4 4.25
+          t3: | | | 4.5 4.75!acc
+      bs:
+        dynamic: mf
+        notes: "(A1:8)*8 | (A1:8)*6 G1:8 E1:8 | F1:2 F1:8 F1:8 F1:4 | G1:2 G1:8 G1:8!acc G1:4"
+      gt:
+        dynamic: mf
+        notes: "A2:8!pm A2:8!pm C3:8 A2:8!pm D3:8 A2:8!pm D#3:8 D3:8 | A2:8!pm A2:8!pm A2:8!pm A2:8!pm [G2 D3]:8 [G2 D3]:8 [A2 E3]:4 | [F2 C3 F3]:2 [F2 C3 F3]:8 [F2 C3 F3]:8 [F2 C3 F3]:4 | [G2 D3 G3]:2 [G2 D3 G3]:8 [G2 D3 G3]:8!acc [G2 D3 G3]:4"
+
+  B:
+    bars: 4
+    chords: "F | G | Am | E7"
+    parts:
+      dr:
+        dynamic: f
+        hits: |
+          cr: 1!acc | | | 1!acc
+          rd: every 0.5 | every 0.5 | every 0.5 |
+          sd: 2!acc 4!acc | 2!acc 4!acc | 2!acc 4!acc |
+          bd: 1 1.5 3 3.5 | 1 1.5 3 3.5 | 1 1.5 3 3.5 | 1!acc
+      bs:
+        dynamic: f
+        notes: "F1:4 F1:8 F1:8 C2:4 F1:4 | G1:4 G1:8 G1:8 D2:4 G1:4 | A1:4 A1:8 A1:8 E2:4 A1:4 | E1:1"
+      gt:
+        dynamic: f
+        notes: "[F2 C3 F3]:2 [F2 C3 F3]:8 [F2 C3 F3]:8 [F2 C3 F3]:4 | [G2 D3 G3]:2 [G2 D3 G3]:8 [G2 D3 G3]:8 [G2 D3 G3]:4 | [A2 E3 A3]:2 [A2 E3 A3]:8 [A2 E3 A3]:8 [A2 E3 A3]:4 | [E2 B2 E3 G#3]:1"
+
+form: [A, B]

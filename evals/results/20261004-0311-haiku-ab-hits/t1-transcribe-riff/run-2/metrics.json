@@ -1,0 +1,86 @@
+{
+  "task": "t1-transcribe-riff",
+  "run": "run-2",
+  "beat_calls": 8,
+  "validate_calls": 6,
+  "events_calls": 2,
+  "first_check_errors": 1,
+  "checks_to_green": 4,
+  "error_trace": [
+    1,
+    9,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "error_categories_all": {
+    "token": 6,
+    "bar_duration": 3,
+    "yaml": 1
+  },
+  "error_categories_first": {
+    "yaml": 1
+  },
+  "error_examples": [
+    "[error] YAML syntax error at line 53: could not determine a constructor for the tag '!pattern'. Line 53: 1: !pattern drum_main_pattern\nHint: quote notes/grid/chords strings that start with [ ( % @ ! or contain ': '",
+    "[error] intro > bs > bar 4: cannot parse articulations '!acc:b0.5' in 'G1!acc:b0.5'",
+    "[error] intro > bs > bar 4: duration 3.5 beats, expected 4: 0.5 beat(s) missing (e.g. add r:b0.5)",
+    "[error] intro > gt > bar 1: cannot parse articulations '!pm:b0.5' in 'A2!pm:b0.5'",
+    "[error] intro > gt > bar 1: duration 5 beats, expected 4: 1 beat(s) too many; a note cannot cross the barline, so end it at the barline and tie it into the next bar with ~",
+    "[error] intro > gt > bar 2: cannot parse articulations '!pm:b0.5' in 'A2!pm:b0.5'",
+    "[error] intro > gt > bar 4: cannot parse articulations '!acc:b0.5' in '[G2 D3 G3]!acc:b0.5'",
+    "[error] intro > gt > bar 4: duration 3.5 beats, expected 4: 0.5 beat(s) missing (e.g. add r:b0.5)",
+    "[error] verse > dr > replace 4 > bar 1: lane 'bd': beat 1 is listed twice",
+    "[error] verse > dr > replace 4 > bar 1: lane 'bd': cannot parse hit 'cr:' (use a beat like 2, 2.5, 1+1/3, optionally with !acc, !ghost or !flam)"
+  ],
+  "final_exists": true,
+  "final_valid": true,
+  "final_errors": [],
+  "final_warnings": 0,
+  "file_chars": 1721,
+  "bars": 8,
+  "chars_per_bar": 215,
+  "compare": {
+    "precision": 0.991,
+    "recall": 0.991,
+    "f1": 0.991,
+    "duration_acc": 1.0,
+    "arts_acc": 1.0,
+    "dynamic_acc": 1.0,
+    "per_part_f1": {
+      "bs": 1.0,
+      "dr": 0.98,
+      "gt": 1.0
+    },
+    "missing": [
+      "dr bar 6 beat 1 rd",
+      "dr bar 7 beat 1 rd"
+    ],
+    "extra": [
+      "dr bar 6 beat 1 cr",
+      "dr bar 7 beat 1 cr"
+    ],
+    "wrong_length": []
+  },
+  "tool_calls": {
+    "Write": 5,
+    "Bash": 9,
+    "Read": 3,
+    "Edit": 3
+  },
+  "other_bash": [
+    "ls -la",
+    "ls -la /private/var/folders/vt/gg0_j7155r554w95f7t7hxsm0000gn/T/beat-eval-t1-transcribe-riff-2h6dis87/examples/"
+  ],
+  "denied": [],
+  "cost_usd": 0.3631975,
+  "turns": 21,
+  "duration_sec": 304,
+  "result_error": false,
+  "subtype": "success",
+  "output_tokens": 34513,
+  "notes": "# Beat DSL Evaluation Notes\n\n## What Was Hard or Confusing\n\n1. **Gaps in drum patterns**: When drum events don't occur at consecutive beats (e.g., beats 3→3.5 with nothing at beat 3), it's unclear whether this represents a rest or just sparse notation. The validator catches it, but the spec could be clearer about whether gaps require explicit rests.\n\n2. **Articulation syntax ordering**: Initially confused about whether articulations come before or after durations (should be `NOTE:DURATION!ART`, not `NOTE!ART:DURATION`). The spec clearly states this, but the counterintuitive ordering tripped up early attempts.\n\n3. **Drum lanes with overlapping beats**: When using `hits` format with multiple drum lanes, figuring out which lanes should have simultaneous strikes at the same beat required careful reading of the drum specification (e.g., kick + hi-hat at beat 1 means adding to both `bd:` and `hh:` lines).\n\n4. **Ride cymbal timing edge case**: The ride cymbal in bar 5 starts at beat 1.5, not beat 1, requiring careful distinction between when crash vs. ride occurs. The spec doesn't explicitly warn about common edge cases like this.\n\n## Workarounds Used\n\n1. **Filling temporal gaps with explicit rests**: Since bar 4 of the intro had unintended silence between beat 3 and 3.5, explicitly added `r:b0.5` to fill the gap rather than relying on implicit rests.\n\n2. **Explicit beat lists instead of ranges**: For drums, used explicit beat listings (e.g., `rd: 1.5 2 2.5 3 3.5 4 4.5`) instead of `every 0.5` when patterns had exceptions (like excluding beat 1).\n\n3. **Patterns for repetitive sections**: Defined reusable patterns (`drum_main`, `drum_fill`, `drum_ride`) to avoid repeating identical bars, though patterns required careful beat-by-beat specification rather than higher-level abstractions.\n\n## Features That Would Be Helpful\n\n1. **Shorthand for conditional rhythms**: A way to express \"every 0.5 beats except beat 1\" would reduce boilerplate. Something like `rd: every 0.5 except 1` or `rd: 1.5-4.5 by 0.5`.\n\n2. **Better error messages for duration mismatches**: When a bar's notes sum to 3.5 instead of 4 beats, showing which beats are missing would help faster iteration (e.g., \"missing 0.5 beats; gap found between beats 3-3.5\").\n\n3. **YAML anchors in drum patterns**: Allow `&anchor` / `*anchor` references for common drum beat configurations to reduce pattern duplication (e.g., defining a standard hi-hat pattern once and reusing it).\n\n4. **Implicit rests for gaps**: Auto-fill temporal gaps with rests instead of requiring manual `r:b...` notation, since rests are usually unintentional omissions rather than creative choices.\n\n5. **Note range/repetition in drum hits**: For patterns like \"snare at 3, 3.25, 3.5, 3.75\", allow something like `sd: 3+0.25*4` or `sd: 3 to 3.75 step 0.25` to avoid listing every beat.\n\n6. **Visual bar ruler in `--by-bar` output**: The compact view is helpful, but showing beat positions (e.g., `|1--|2--|3--|4--|`) would make parsing by eye easier.\n"
+}

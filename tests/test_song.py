@@ -201,3 +201,31 @@ sections:
     assert audio.shape[1] == 2
     assert np.isfinite(audio).all()
     assert np.abs(audio).max() == pytest.approx(10 ** (-1 / 20), rel=1e-3)
+
+
+def test_did_you_mean_suggestions():
+    diags, _ = build("""
+patterns:
+  groove: { type: drums, bars: 1, grid: "bd: x---x---x---x---" }
+sections:
+  a:
+    bars: 1
+    parts:
+      dr: { use: grove }
+      bs: { notes: "E1:1!palm", dynamc: f }
+      gt: { notes: "@mff E2:1" }
+""")
+    text = messages(diags) + messages(diags, "warning")
+    assert "unknown pattern 'grove' (did you mean 'groove'?)" in text
+    assert "unknown articulation '!palm' in 'E1:1!palm' (did you mean 'pm'?)" in text
+    assert "unknown key 'dynamc' (did you mean 'dynamic'?)" in text
+    assert "unknown dynamic '@mff' (did you mean '@mf'?)" in text
+
+
+def test_yaml_error_names_the_line_to_quote():
+    diags = Diagnostics()
+    assert load_song(HEADER + 'sections:\n  a:\n    bars: 1\n    parts:\n      gt:\n'
+                              '        notes: [E2 B2]:1 E2\nform: [a]\n', diags) is None
+    (err,) = diags.errors
+    assert "Line 14: the notes value starts with '['" in err.message
+    assert 'wrap it in quotes: notes: "[E2 B2]:1 E2' in err.message

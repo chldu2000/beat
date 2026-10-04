@@ -6,8 +6,7 @@ import sys
 from pathlib import Path
 
 from .compile import Compiled, compile_song
-from .diagnostics import Diagnostics
-from .pitch import pitch_name
+from .diagnostics import Diagnostics, did_you_mean
 from .song import Song, load_song
 
 
@@ -26,7 +25,7 @@ def _load(path: str, sections: str | None = None) -> tuple[Diagnostics, Song | N
         wanted = [s.strip() for s in sections.split(",") if s.strip()]
         for s in wanted:
             if s not in song.sections:
-                diags.error("--sections", f"unknown section '{s}'")
+                diags.error("--sections", f"unknown section '{s}'{did_you_mean(s, song.sections)}")
         form = [s for s in song.form if s in wanted]
         if not form:
             diags.error("--sections", "none of the selected sections appear in the form")
@@ -67,22 +66,30 @@ def cmd_validate(args) -> int:
 
 
 def cmd_events(args) -> int:
+    from .views import by_bar, parse_bar_range, select, table
+
     diags, song, compiled = _load(args.song, args.sections)
+    parts = [p.strip() for p in args.parts.split(",")] if args.parts else None
+    bars = None
+    if args.bars:
+        try:
+            bars = parse_bar_range(args.bars)
+        except ValueError as e:
+            diags.error("--bars", str(e))
+    if song and parts:
+        for p in parts:
+            if p not in song.instruments:
+                diags.error("--parts", f"unknown part '{p}'{did_you_mean(p, song.instruments)}")
     if diags.has_errors or compiled is None:
         return _report(diags, compiled, args.json)
+    events = select(compiled.events, parts, bars)
     if args.json:
-        print(json.dumps(compiled.to_dict(), ensure_ascii=False, indent=1))
+        out = compiled.to_dict()
+        out["events"] = [e.to_dict() for e in events]
+        print(json.dumps(out, ensure_ascii=False, indent=1))
         return 0
     _print_diags(diags)
-    print(f"{'time':>8} {'dur':>6}  {'part':<6} {'note':<5} {'vel':>5}  where / arts")
-    for e in compiled.events:
-        if args.parts and e.part not in args.parts.split(","):
-            continue
-        note = e.lane or pitch_name(e.pitch)
-        s = e.src
-        arts = " ".join("!" + k if v is True else f"!{k}={v}" for k, v in e.arts.items())
-        print(f"{e.time:8.3f} {e.dur:6.3f}  {e.part:<6} {note:<5} {e.velocity:5.2f}  "
-              f"{s['section']}#{s['instance']} bar {s['bar']} beat {s['beat']:g} {arts}")
+    print(by_bar(compiled, events) if args.by_bar else table(compiled, events))
     return 0
 
 
@@ -106,7 +113,7 @@ def cmd_render(args) -> int:
     if song and parts:
         for p in parts:
             if p not in song.instruments:
-                diags.error("--parts", f"unknown part '{p}'")
+                diags.error("--parts", f"unknown part '{p}'{did_you_mean(p, song.instruments)}")
     if diags.has_errors or compiled is None:
         return _report(diags, compiled, False)
     _print_diags(diags)
@@ -126,11 +133,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_validate)
 
-    p = sub.add_parser("events", help="print the compiled event list")
+    p = sub.add_parser("events", help="print the compiled notes")
     p.add_argument("song")
     p.add_argument("--json", action="store_true")
     p.add_argument("--parts", help="comma-separated part ids")
-    p.add_argument("--sections", help="comma-separated section ids")
+    p.add_argument("--sections", help="comma-separated section ids (renders only these, in form order)")
+    p.add_argument("--bars", help="global bar number or range, e.g. 5 or 5-8")
+    p.add_argument("--by-bar", action="store_true",
+                   help="compact view: one line per part per bar, beat:note/length")
     p.set_defaults(func=cmd_events)
 
     p = sub.add_parser("midi", help="export a MIDI file")

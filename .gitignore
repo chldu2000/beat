@@ -5,3 +5,6 @@ __pycache__/
 out/
 *.wav
 *.mid
+evals/results/**/transcript.jsonl
+evals/results/**/beatlog/
+evals/results/**/stderr.txt

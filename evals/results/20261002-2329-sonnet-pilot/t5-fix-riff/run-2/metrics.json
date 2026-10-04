@@ -1,0 +1,77 @@
+{
+  "task": "t5-fix-riff",
+  "run": "run-2",
+  "beat_calls": 5,
+  "validate_calls": 3,
+  "events_calls": 2,
+  "first_check_errors": 1,
+  "checks_to_green": 3,
+  "error_trace": [
+    1,
+    4,
+    0,
+    0,
+    0
+  ],
+  "error_categories_all": {
+    "bar_count": 1,
+    "tie": 1,
+    "grid_length": 1,
+    "yaml": 1,
+    "range": 1
+  },
+  "error_categories_first": {
+    "yaml": 1
+  },
+  "error_examples": [
+    "[error] YAML syntax error: while parsing a block mapping\n  in \"<unicode string>\", line 55, column 9:\n            notes: [F2 C3 F3]:2 [F2 C3 F3]:8 ... \n            ^\nexpected <block end>, but found '<scalar>'\n  in \"<unicode string>\", line 55, column 26:\n            notes: [F2 C3 F3]:2 [F2 C3 F3]:8 [F2 C3 F3] [F2 C ... \n                             ^\nHint: quote notes/grid/chords strings, especially ones starting with [ ( % @ ! or containing ': '",
+    "[error] a > bs > bar 2, beat 4: G0 is outside the bass range E1-E4",
+    "[error] a > chords: 3 bars of chords, expected 4",
+    "[error] a#1 > bs > bar 3, beat 2.5: tie from F1 but the next note is G1",
+    "[error] b > dr > bar 2: lane 'bd' has 17 steps in this bar, expected 16"
+  ],
+  "final_exists": true,
+  "final_valid": true,
+  "final_errors": [],
+  "final_warnings": 0,
+  "file_chars": 1777,
+  "bars": 8,
+  "chars_per_bar": 222,
+  "compare": {
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "duration_acc": 1.0,
+    "arts_acc": 1.0,
+    "dynamic_acc": 1.0,
+    "per_part_f1": {
+      "bs": 1.0,
+      "dr": 1.0,
+      "gt": 1.0
+    },
+    "missing": [],
+    "extra": [],
+    "wrong_length": []
+  },
+  "tool_calls": {
+    "Bash": 7,
+    "Read": 2,
+    "Edit": 6,
+    "Write": 1
+  },
+  "other_bash": [
+    "ls; echo ---; cat song.beat.yaml",
+    "cat examples/demo.beat.yaml; echo ---VALIDATE---; beat validate song.beat.yaml --json",
+    "python3 - <<'EOF'\nlines = {\n\"cr\": \"X--------------- | ---------------- | ---------------- | X---------------\",\n\"rd\": \"--x-x-x-x-x-x-x- | x-x-x-x-x-x-x-x- | x-x-x-x-x-x-x-x- | ----------------\",\n\"sd\": \"----X-------X--- | ----X-------X--- | ----X-------X--- | ----------------\",\n\"bd\": \"x-x-----x-x----- | x-x-----x-x------ | x-x-----x-x----- | X---------------\",\n}\nfor k,v in lines.items():\n    bars = [b.strip() for b in v.split(\"|\")]\n    print(k, [len(b) for b in bars])\nEOF\n"
+  ],
+  "denied": [
+    "Bash: python3 - <<'EOF'\nlines = {\n\"cr\": \"X--------------- | ---------------- | ---------------- | X---------------\",\n\"rd\": \"--x-x-x-x-x-x-x- | x-x-x-x-x-x-x-x- | x-x-x-x-x-x-x-x- | ----------------\",\n"
+  ],
+  "cost_usd": 0.2217382,
+  "turns": 17,
+  "duration_sec": 63,
+  "result_error": false,
+  "subtype": "success",
+  "output_tokens": 5556,
+  "notes": "# Notes\n\n## 1. What was hard or confusing\n\n- The error messages are precise about *where* something is wrong (section, part,\n  bar) but not always about *what the composer probably meant*. E.g. a tie\n  mismatch (`F1` tied to `G1`) just says the tie is broken; figuring out which\n  side was the typo required comparing against the guitar part in the same bar.\n- Unquoted `notes:` strings starting with `[` fail with a raw YAML parser\n  traceback rather than a Beat-specific diagnostic, even though the spec and a\n  comment in the example file both warn about this. It would be easy to miss\n  if you didn't already know the rule.\n- Grid alignment bugs (one extra/missing `-` in a 16-step lane) are invisible\n  by eye in a monospace block when bars are concatenated with `|` on one line;\n  you only find them via the validator's bar/lane-specific step count.\n\n## 2. Workarounds\n\n- No real workarounds were needed — every error had a direct, in-spec fix\n  (quote the string, correct the pattern-name typo, correct the articulation\n  name, add the missing chord, fix the tied pitch, fix the grid length).\n- Used `beat events` on the affected sections after each fix to visually\n  confirm the repaired bass tie and drum groove matched the surrounding\n  (already-correct) guitar/drum material, rather than trusting validation\n  alone.\n\n## 3. Features or changes I'd want\n\n- A \"did you mean\" suggestion for unknown pattern names (`grove` vs `groove`)\n  and unknown articulations (`!palm` vs `!pm`), since both are simple typos of\n  valid identifiers already defined elsewhere in the file.\n- A lint check that a section's `chords` bar count matches its `bars` count\n  with a pointer to which bar is missing, rather than only \"3 bars of chords,\n  expected 4\" (useful as-is, but naming the missing bar index would save a\n  recount).\n- A grid-diff helper (or `beat events` option) that prints step index markers\n  above/below long concatenated multi-bar grid lines, making off-by-one\n  alignment errors visible without needing the validator round-trip.\n"
+}
