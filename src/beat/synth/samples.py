@@ -38,6 +38,9 @@ LEVEL = {"hh": (0.17, 0.1), "ho": (0.21, 0.5), "hp": (0.14, 0.1), "cr": (0.21, 1
          "rd": (0.16, 0.5), "rb": (0.19, 0.5)}
 DYNAMICS = 2.8  # power ~ velocity^DYNAMICS (the synthesized kit's amplitude goes as velocity^1.4)
 CHOICES = 3  # pick among this many hits nearest in power, avoiding the one played last
+# lane -> (hold seconds, extra dB per second): the ride rings ~7 dB/s for 5-8 s, so steady eighths pile its
+# partials into a drone; past the hold its tail fades faster
+TAIL = {"rd": (0.25, 12.0), "rb": (0.25, 12.0)}
 
 
 def kit_dir() -> Path:
@@ -87,6 +90,7 @@ class Lane:
         loudest = _audio(self.inst, *files[-1], sr)[: int(sec * sr)]
         self.norm = rms / (np.sqrt(np.mean(loudest ** 2)) + 1e-12)
         self.last: dict[str, int] = {}
+        self.tail = TAIL.get(lane)
 
     def hit(self, velocity: float, accent: bool, rng: np.random.Generator) -> np.ndarray:
         inst = self.accent if accent and self.accent else self.inst
@@ -99,4 +103,12 @@ class Lane:
         self.last[inst] = k
         # make up the difference between the wanted power and the hit's (within reason)
         gain = float(np.clip(np.sqrt(target / powers[k]), 0.5, 2.0))
-        return _audio(inst, *files[k], self.sr) * self.norm * gain
+        y = _audio(inst, *files[k], self.sr) * self.norm * gain
+        return _faded(y, *self.tail, self.sr) if self.tail else y
+
+
+def _faded(y: np.ndarray, hold: float, db_per_sec: float, sr: int) -> np.ndarray:
+    """`y` with an extra exponential decay after `hold` seconds, cut where it is 80 dB down."""
+    t = np.arange(len(y)) / sr - hold
+    n = min(len(y), int((hold + 80.0 / db_per_sec) * sr))
+    return (y * 10 ** (-db_per_sec * np.maximum(t, 0.0) / 20))[:n]

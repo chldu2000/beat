@@ -169,3 +169,16 @@ def test_modal_engine_plays_cymbals_from_samples_and_chokes_the_open_hat():
     choked = drums.render_modal(None, [ev("ho", 0.0), ev("hp", 0.5, v=0.01)], n, SR, np.random.default_rng(0))
     assert rms(open_hat[:, 0], 0.8, 1.2) > 0.05 * rms(open_hat[:, 0], 0.0, 0.4)  # an open hat rings on
     assert rms(choked[:, 0], 0.8, 1.2) < 0.3 * rms(open_hat[:, 0], 0.8, 1.2)
+
+
+@needs_kit
+def test_ride_tail_fades_faster_than_the_recording():
+    lane = samples.Lane("rd", SR)
+    y = lane.hit(0.8, False, np.random.default_rng(0))
+    k = lane.last[lane.inst]
+    raw = samples._audio(lane.inst, *samples._hits(lane.inst, lane.mic)[1][k], SR)
+    head = slice(0, int(0.2 * SR))
+    assert np.allclose(y[head], raw[head] * (y[head] @ raw[head]) / (raw[head] @ raw[head]))  # the hit untouched
+    drop = lambda a: rms(a, 0.05, 0.25) / rms(a, 1.5, 2.0)
+    assert drop(y) > 4 * drop(raw)  # the extra 12 dB/s from 0.25 s is ~20 dB down by 1.75 s
+    assert len(y) < len(raw)
