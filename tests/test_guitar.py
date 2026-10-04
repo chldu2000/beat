@@ -5,7 +5,9 @@ import pytest
 
 from beat.compile import Event
 from beat.song import Instrument
-from beat.synth import guitar
+from beat.synth import amp
+from beat.synth.guitar import GUITAR
+from beat.synth.plucked import strings_signal
 from beat.synth.fretboard import assign
 
 SR = 44100
@@ -19,7 +21,7 @@ def ev(pitch: int, t: float = 0.0, d: float = 2.0, v: float = 0.8, beat: float |
 
 
 def strings(events: list[Event], sec: float, seed: int = 0) -> np.ndarray:
-    return guitar.strings_signal(INST, events, int(sec * SR), SR, np.random.default_rng(seed))
+    return strings_signal(GUITAR, INST, events, int(sec * SR), SR, np.random.default_rng(seed))
 
 
 def f0_of(y: np.ndarray, guess: float) -> float:
@@ -102,7 +104,7 @@ def test_same_seed_same_audio_and_no_nans():
     notes = [ev(40, d=0.25, pm=True), ev(52, t=0.25, d=0.5, beat=0.5), ev(45, t=0.75, d=0.2, beat=1, x=True)]
     a, b = strings(notes, 1.5, seed=3), strings(notes, 1.5, seed=3)
     assert np.array_equal(a, b)
-    out = guitar.amp.amp(a, SR, "lead")
+    out = amp.amp(a, SR, "lead")
     assert np.isfinite(out).all()
 
 

@@ -1,7 +1,8 @@
-"""Tube guitar amp: preamp triode stages (4x oversampled), tone stack, power stage, cabinet.
+"""Tube amps. Guitar: preamp triode stages (4x oversampled), tone stack, power stage, cabinet.
 
 Each triode stage is an asymmetric soft clipper (the grid-conduction side clips harder) with a
 coupling-cap highpass and a Miller-capacitance lowpass, and inverts like a real common-cathode stage.
+Bass: one gentle stage, tone stack, speaker rolloff (no cabinet IR, which would cut the lows).
 """
 
 import numpy as np
@@ -17,6 +18,7 @@ TONES = {
     "lead": {"stages": [8.0, 6.0, 3.0], "tight_hz": 150, "stack": (1.0, 2.5, 1.0), "power": 1.4},
 }
 BIAS = 0.2
+BASS_DRIVE = 2.0
 
 
 def _triode(x: np.ndarray) -> np.ndarray:
@@ -62,3 +64,15 @@ def amp(x: np.ndarray, sr: int, tone: str) -> np.ndarray:
     drive = cfg["power"]
     y = np.tanh(drive * y) / np.tanh(drive)
     return cabinet(y, sr)
+
+
+def bass_amp(x: np.ndarray, sr: int) -> np.ndarray:
+    """Bass amp: soft tube saturation, tone stack (full lows, less box, some growl), speaker rolloff."""
+    x = sosfilt(butter(2, 30, "hp", fs=sr, output="sos"), x)
+    up = resample_poly(x, OS, 1)
+    up = np.tanh(BASS_DRIVE * up + BIAS) - np.tanh(BIAS)
+    y = resample_poly(up, 1, OS)[: len(x)] / BASS_DRIVE
+    for kind, f0, g in (("low", 90, 3.0), ("peak", 400, -2.0), ("peak", 1200, 2.0)):
+        b, a = _biquad(kind, f0, g, sr)
+        y = lfilter(b, a, y)
+    return sosfilt(butter(2, 4500, "lp", fs=sr, output="sos"), y)

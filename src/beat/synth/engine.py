@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 # type -> engine name -> "module:function"; the first engine is the default.
 ENGINES: dict[str, dict[str, str]] = {
     "drums": {"kit": "drums:render_part"},
-    "bass": {"ks": "strings:render_part"},
+    "bass": {"waveguide": "bass:render_part", "ks": "strings:render_part"},
     "guitar": {"waveguide": "guitar:render_part", "ks": "strings:render_part"},
     "organ": {"drawbar": "keys:organ_part"},
     "piano": {"additive": "keys:piano_part"},
