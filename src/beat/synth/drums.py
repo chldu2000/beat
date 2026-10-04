@@ -4,6 +4,7 @@ import numpy as np
 from scipy.signal import butter, sosfilt
 
 from ..compile import Event
+from ..song import Instrument
 
 ROUND_ROBIN = 4
 # lane -> (gain, pan)  pan from the audience's view, -1 left .. 1 right
@@ -127,3 +128,7 @@ def render_kit(events: list[Event], n: int, sr: int, rng: np.random.Generator) -
             out[start:start + len(seg), 0] += seg * left
             out[start:start + len(seg), 1] += seg * right
     return out
+
+
+def render_part(inst: Instrument, events: list[Event], n: int, sr: int, rng: np.random.Generator) -> np.ndarray:
+    return render_kit(events, n, sr, rng)

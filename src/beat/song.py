@@ -9,6 +9,7 @@ import yaml
 from .diagnostics import Diagnostics, did_you_mean, loc
 from .notation import DYNAMICS, Item, fmt_beats, parse_grid, parse_hits, parse_notes
 from .pitch import parse_chord, parse_pitch
+from .synth.engine import ENGINES
 
 SPEC_VERSION = "0.1"
 
@@ -206,6 +207,10 @@ def _load_instruments(raw, diags: Diagnostics) -> dict[str, Instrument]:
         _warn_unknown(spec, INSTRUMENT_KEYS, where, diags)
         itype = spec["type"]
         inst = Instrument(id=pid, type=itype, model=spec.get("model") or {})
+        engine = inst.model.get("engine") if isinstance(inst.model, dict) else None
+        if engine is not None and engine not in ENGINES[itype]:
+            diags.error(f"{where} > model > engine", f"unknown engine {engine!r} for {itype}; available: "
+                                                     f"{', '.join(ENGINES[itype])}{did_you_mean(engine, ENGINES[itype])}")
         if itype in DEFAULT_TUNING:
             try:
                 inst.tuning = tuple(parse_pitch(str(n)) for n in spec.get("tuning", DEFAULT_TUNING[itype]))

@@ -8,6 +8,7 @@ from scipy.signal import butter, lfilter, resample_poly, sosfilt
 
 from ..compile import Event
 from ..song import Instrument
+from .engine import mix_notes
 
 DAMP_TAU = 0.025  # seconds; how fast a fretting hand silences the string at note-off
 DRIVE = {"clean": 1.2, "crunch": 10.0, "lead": 28.0}
@@ -82,3 +83,8 @@ def amp(x: np.ndarray, sr: int, tone: str) -> np.ndarray:
 def bass_chain(x: np.ndarray, sr: int) -> np.ndarray:
     y = np.tanh(1.5 * x)
     return sosfilt(butter(2, 3000, "lp", fs=sr, output="sos"), y)
+
+
+def render_part(inst: Instrument, events: list[Event], n: int, sr: int, rng: np.random.Generator) -> np.ndarray:
+    out = mix_notes(events, n, sr, lambda ev: render_note(ev, inst, sr, rng))
+    return amp(out, sr, inst.tone) if inst.type == "guitar" else bass_chain(out, sr)

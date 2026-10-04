@@ -20,5 +20,9 @@ uv run pytest
 `notation.py` (text notations) → `song.py` (YAML → resolved sections) → `checks.py` (playability)
 → `compile.py` (timeline, ties, performance layer → events) → `render.py` + `synth/` (audio), `midi.py`.
 
+`synth/engine.py` maps each instrument type to named engines (`model: { engine: ... }`). The guitar
+physical model is `fretboard.py` (string assignment) → `waveguide.py` (numba string loop) →
+`guitar.py` → `amp.py` + `cab.py`. `scripts/audition_guitar.py` renders new-vs-old listening clips.
+
 Diagnostics must name a location (`section > part > bar N, beat B`) and say what to change: the
 composer agent fixes songs from these messages alone.

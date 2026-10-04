@@ -5,9 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
-from .compile import Compiled, Event
-from .song import Instrument
-from .synth import drums, keys, strings
+from .compile import Compiled
+from .synth.engine import render_part
 
 SR = 44100
 TAIL_SEC = 2.5
@@ -30,7 +29,7 @@ def render(compiled: Compiled, parts: list[str] | None = None, sr: int = SR) -> 
         if not events:
             continue
         rng = np.random.default_rng([int(seed), i])
-        audio = _render_part(inst, events, n, sr, rng)
+        audio = render_part(inst, events, n, sr, rng)
         audio = _normalize_rms(audio, TARGET_RMS_DB[inst.type])
         cfg = mix.get(pid) or {}
         gain = 10 ** (float(cfg.get("gain_db", 0)) / 20)
@@ -41,33 +40,6 @@ def render(compiled: Compiled, parts: list[str] | None = None, sr: int = SR) -> 
     if peak > 0:
         master *= 10 ** (-1 / 20) / peak
     return master
-
-
-def _render_part(inst: Instrument, events: list[Event], n: int, sr: int,
-                 rng: np.random.Generator) -> np.ndarray:
-    if inst.type == "drums":
-        return drums.render_kit(events, n, sr, rng)
-
-    voice = {
-        "guitar": lambda ev: strings.render_note(ev, inst, sr, rng),
-        "bass": lambda ev: strings.render_note(ev, inst, sr, rng),
-        "organ": lambda ev: keys.organ_note(ev, sr, rng),
-        "piano": lambda ev: keys.piano_note(ev, sr, rng),
-    }[inst.type]
-    out = np.zeros(n)
-    for ev in events:
-        y = voice(ev)
-        start = int(ev.time * sr)
-        y = y[: max(0, n - start)]
-        out[start:start + len(y)] += y
-
-    if inst.type == "guitar":
-        out = strings.amp(out, sr, inst.tone)
-    elif inst.type == "bass":
-        out = strings.bass_chain(out, sr)
-    elif inst.type == "organ":
-        out = keys.leslie(out, sr)
-    return out
 
 
 def _normalize_rms(audio: np.ndarray, target_db: float) -> np.ndarray:

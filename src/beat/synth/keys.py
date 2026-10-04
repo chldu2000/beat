@@ -3,6 +3,8 @@
 import numpy as np
 
 from ..compile import Event
+from ..song import Instrument
+from .engine import mix_notes
 
 # 16', 8', 5 1/3', 4' footages as multiples of the played pitch.
 DRAWBARS = [(0.5, 1.0), (1.0, 1.0), (1.5, 0.8), (2.0, 0.5)]
@@ -51,3 +53,11 @@ def piano_note(ev: Event, sr: int, rng: np.random.Generator) -> np.ndarray:
     off = int(ev.dur * sr)
     y[off:] *= np.exp(-np.arange(n - off) / (0.08 * sr))
     return y
+
+
+def organ_part(inst: Instrument, events: list[Event], n: int, sr: int, rng: np.random.Generator) -> np.ndarray:
+    return leslie(mix_notes(events, n, sr, lambda ev: organ_note(ev, sr, rng)), sr)
+
+
+def piano_part(inst: Instrument, events: list[Event], n: int, sr: int, rng: np.random.Generator) -> np.ndarray:
+    return mix_notes(events, n, sr, lambda ev: piano_note(ev, sr, rng))
