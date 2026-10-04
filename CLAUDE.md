@@ -23,7 +23,10 @@ uv run pytest
 `synth/engine.py` maps each instrument type to named engines (`model: { engine: ... }`). Guitar and
 bass share the plucked-string model: `fretboard.py` (string assignment) → `waveguide.py` (numba string
 loop) → `plucked.py`; `guitar.py` / `bass.py` hold each instrument's `StringModel` and amp chain
-(`amp.py`, `cab.py`). `scripts/audition.py` renders new-vs-old listening clips.
+(`amp.py`, `cab.py`). The organ: `registration.py` (presets and `model:` keys, no numba) → `organ.py`
+(tonewheels, key contacts, percussion, scanner, preamp) → `leslie.py` (rotary speaker, stereo); its
+Leslie speed reaches the engine as section `controls`. `scripts/audition.py` renders new-vs-old
+listening clips.
 
 Diagnostics must name a location (`section > part > bar N, beat B`) and say what to change: the
 composer agent fixes songs from these messages alone.

@@ -1,4 +1,4 @@
-"""Keyboards: drawbar organ (additive + crude Leslie) and a simple inharmonic piano."""
+"""Keyboards: the old drawbar organ (additive + crude Leslie, `engine: drawbar`) and a simple inharmonic piano."""
 
 import numpy as np
 
@@ -55,7 +55,8 @@ def piano_note(ev: Event, sr: int, rng: np.random.Generator) -> np.ndarray:
     return y
 
 
-def organ_part(inst: Instrument, events: list[Event], n: int, sr: int, rng: np.random.Generator) -> np.ndarray:
+def organ_part(inst: Instrument, events: list[Event], n: int, sr: int, rng: np.random.Generator,
+               controls=()) -> np.ndarray:
     return leslie(mix_notes(events, n, sr, lambda ev: organ_note(ev, sr, rng)), sr)
 
 

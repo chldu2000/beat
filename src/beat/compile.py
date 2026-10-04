@@ -13,6 +13,7 @@ from .song import Section, Song
 ACCENT = 0.12
 GHOST = 0.35
 DEFAULT_STRUM_MS = {"guitar": 8.0}
+NO_TOUCH = {"organ"}  # keyboards whose loudness does not follow the key stroke: accents are ignored
 PERF_KEYS = {"seed", "humanize", "swing", "parts", "edits"}
 PART_PERF_KEYS = {"humanize", "swing", "offset_ms", "velocity", "strum_ms", "lanes"}
 EDIT_KEYS = {"part", "section", "instance", "bar", "beat", "pitch", "lane", "velocity", "offset_ms", "length"}
@@ -55,6 +56,20 @@ class Event:
 
 
 @dataclass
+class Control:
+    """A setting that a part holds from `time` on, e.g. the organ's Leslie speed for a section."""
+    part: str
+    time: float
+    name: str
+    value: str
+    src: dict
+
+    def to_dict(self) -> dict:
+        return {"part": self.part, "time": round(self.time, 4), "name": self.name, "value": self.value,
+                "src": self.src}
+
+
+@dataclass
 class Compiled:
     song: Song
     instances: list[Instance]
@@ -63,6 +78,7 @@ class Compiled:
     duration_sec: float
     total_bars: int
     form: list[str] = field(default_factory=list)
+    controls: list[Control] = field(default_factory=list)
 
     def beat_to_sec(self, beat: float) -> float:
         return beat_to_sec(self.instances, beat)
@@ -81,6 +97,7 @@ class Compiled:
             "parts": {pid: {"type": i.type, **({"tone": i.tone} if i.tone else {})}
                       for pid, i in self.song.instruments.items()},
             "events": [e.to_dict() for e in self.events],
+            **({"controls": [c.to_dict() for c in self.controls]} if self.controls else {}),
         }
 
 
@@ -114,7 +131,10 @@ def compile_song(song: Song, diags: Diagnostics, form: list[str] | None = None) 
     events: list[Event] = []
     for pid in song.instruments:
         events.extend(_part_events(song, pid, instances, diags))
-    compiled = Compiled(song, instances, events, total_beats, duration, total_bars, list(form))
+    controls = [Control(pid, ins.start_sec, name, value, {"section": ins.section.id, "instance": ins.index})
+                for ins in instances for pid, settings in ins.section.controls.items()
+                for name, value in settings.items()]
+    compiled = Compiled(song, instances, events, total_beats, duration, total_bars, list(form), controls)
     _apply_performance(compiled, diags)
     compiled.events.sort(key=lambda e: (e.time, e.part, e.pitch))
     return compiled
@@ -122,6 +142,7 @@ def compile_song(song: Song, diags: Diagnostics, form: list[str] | None = None) 
 
 def _part_events(song: Song, pid: str, instances: list[Instance], diags: Diagnostics) -> list[Event]:
     events: list[Event] = []
+    touch = song.instruments[pid].type not in NO_TOUCH
     pending: dict[int, Event] = {}  # pitch -> event a tie will extend
     pending_where = ""
 
@@ -149,7 +170,7 @@ def _part_events(song: Song, pid: str, instances: list[Instance], diags: Diagnos
                     broken_tie(f"but the next note is {' '.join(pitch_name(p) for p in item.pitches)}")
 
                 level = item.level
-                if item.arts.get("acc"):
+                if item.arts.get("acc") and touch:
                     level += ACCENT
                 if item.arts.get("ghost"):
                     level *= GHOST

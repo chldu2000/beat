@@ -297,3 +297,48 @@ def test_yaml_error_names_the_line_to_quote():
     (err,) = diags.errors
     assert "Line 14: the notes value starts with '['" in err.message
     assert 'wrap it in quotes: notes: "[E2 B2]:1 E2' in err.message
+
+
+def test_organ_model_and_leslie():
+    diags = Diagnostics()
+    organ = "org: { type: organ, model: { registration: jazz, drawbars: 888000000, vibrato: off } }"
+    song = load_song(HEADER.replace("org: { type: organ }", organ) + """
+sections:
+  a:
+    bars: 1
+    parts:
+      org: { leslie: fast, notes: "C4:1" }
+  b:
+    bars: 1
+    parts:
+      org: { notes: "C4:2!acc C4:2" }
+form: [a, b, a]
+""", diags)
+    c = compile_song(song, diags)
+    assert messages(diags) == ""
+    assert "!acc has no effect on organ" in messages(diags, "warning")
+    assert [(round(x.time, 3), x.value) for x in c.controls] == [(0.0, "fast"), (2.0, "slow"), (4.0, "fast")]
+    acc, plain = [e for e in c.events if e.src["section"] == "b"]
+    assert acc.velocity == plain.velocity  # no touch sensitivity: the accent is ignored
+    assert c.to_dict()["controls"][0]["value"] == "fast"
+
+
+def test_organ_errors():
+    diags = Diagnostics()
+    organ = 'org: { type: organ, model: { registration: churchy, drawbars: "889", drive: 2, percusion: 3rd } }'
+    load_song(HEADER.replace("org: { type: organ }", organ) + """
+sections:
+  a:
+    bars: 1
+    parts:
+      org: { leslie: medium, notes: "C4:1" }
+      gt: { leslie: fast, notes: "E2:1" }
+form: [a]
+""", diags)
+    errors = messages(diags)
+    assert "model > registration: unknown registration 'churchy'" in errors
+    assert "model > drawbars: drawbars must be nine digits" in errors
+    assert "model > drive: drive must be a number from 0 to 1" in errors
+    assert "a > org > leslie: leslie must be slow or fast" in errors
+    assert "'leslie' only applies to organ parts, not guitar" in errors
+    assert "unknown key 'percusion'" in messages(diags, "warning")

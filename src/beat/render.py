@@ -29,7 +29,7 @@ def render(compiled: Compiled, parts: list[str] | None = None, sr: int = SR) -> 
         if not events:
             continue
         rng = np.random.default_rng([int(seed), i])
-        audio = render_part(inst, events, n, sr, rng)
+        audio = render_part(inst, events, n, sr, rng, [c for c in compiled.controls if c.part == pid])
         audio = _normalize_rms(audio, TARGET_RMS_DB[inst.type])
         cfg = mix.get(pid) or {}
         gain = 10 ** (float(cfg.get("gain_db", 0)) / 20)

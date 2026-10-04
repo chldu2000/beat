@@ -72,6 +72,9 @@ def _check_pitched(inst: Instrument, item: Item, where: str, diags: Diagnostics)
         bad = sorted(set(item.arts) & STRING_ARTS)
         if bad:
             diags.warn(at, f"articulation {', '.join('!' + a for a in bad)} does not apply to {inst.type}")
+    if inst.type == "organ" and item.arts.get("acc"):
+        diags.warn(at, "!acc has no effect on organ (no touch sensitivity); for a louder passage raise the "
+                       "dynamic (@f, or the part's dynamic), which also drives the organ harder")
 
 
 def _check_limbs(items: list[Item], where: str, diags: Diagnostics) -> None:

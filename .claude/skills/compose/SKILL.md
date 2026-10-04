@@ -29,7 +29,10 @@ authoritative format reference — read it before writing. `examples/demo.beat.y
 4. **Fix every error.** Read warnings too and fix the ones that are real mistakes.
 5. **Check intent** with `beat events --by-bar --bars …` on bars you are unsure about (rhythms, ties,
    repeats, drum grids).
-6. Keep repeated material in `patterns` and vary it with `replace` (whole bars, optionally
+6. **Organ**: choose its sound once with `model: { registration: ... }` (SPEC section 3), shape it per
+   section with `dynamic` (it has no touch sensitivity; `!acc` does nothing) and `leslie: fast` where
+   the section should lift (usually choruses and solos).
+7. Keep repeated material in `patterns` and vary it with `replace` (whole bars, optionally
    transposed) and, for drums, `add` (extra hits such as a crash), so later edits stay local.
 
 When editing an existing song, change only what was asked and keep everything else identical.

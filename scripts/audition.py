@@ -1,4 +1,4 @@
-"""Render guitar and bass audition clips with the waveguide engine and the old Karplus-Strong one.
+"""Render guitar, bass and organ audition clips with the new engines and the old placeholder ones.
 
     uv run python scripts/audition.py [out/audition]
 
@@ -14,7 +14,11 @@ from beat.diagnostics import Diagnostics
 from beat.render import render, write_wav
 from beat.song import load_song
 
-# (name, guitar tone or "bass", bars of notes, what to listen for)
+# instrument type -> (new engine, old engine)
+ENGINES = {"guitar": ("waveguide", "ks"), "bass": ("waveguide", "ks"), "organ": ("tonewheel", "drawbar")}
+
+# (name, guitar tone, "bass" or "organ:<registration>", bars of notes, what to listen for). For the organ,
+# `notes` may be a list of (leslie speed, notes) sections.
 CLIPS = [
     ("single_clean", "clean", "E2:1 | A3:1 | E4:1 | E5:1",
      "Single notes, clean: attack, tuning, how the sustain darkens as it decays."),
@@ -40,6 +44,23 @@ CLIPS = [
      "Palm-muted and dead bass notes."),
     ("bass_legato", "bass", "E1:8 G1:8!h A1:4 A1:8 G1:8!p E1:4 | E1:1",
      "Bass hammer-ons and pull-offs."),
+    ("organ_chords", "organ:rock", "[E3 B3 E4 G4]:1 | [C3 G3 C4 E4]:1 | [D3 A3 D4 F#4]:1 | [A2 E3 A3 C4]:1",
+     "Held chords, rock registration, Leslie slow: tonewheel body, key click, the slow swirl."),
+    ("organ_leslie_ramp", "organ:rock",
+     [("slow", "[E3 B3 E4 G4]:1~ | [E3 B3 E4 G4]:1~"),
+      ("fast", "[E3 B3 E4 G4]:1~ | [E3 B3 E4 G4]:1~ | [E3 B3 E4 G4]:1~"),
+      ("slow", "[E3 B3 E4 G4]:1~ | [E3 B3 E4 G4]:1~ | [E3 B3 E4 G4]:1")],
+     "One held chord: Leslie slow -> fast -> slow. The horn gets there in about a second, the drum lags."),
+    ("organ_percussion", "organ:jazz",
+     "C4:8 E4:8 G4:8 A4:8 r:8 G4:8 E4:4 | [D3 F3 A3 C4]:4!st r:8 [D3 F3 A3 C4]:8 r:2",
+     "Jazz registration with 3rd-harmonic percussion: the 'pop' at each detached note."),
+    ("organ_riff", "organ:rock",
+     [("fast", "@ff [E3 B3]:8 [E3 B3]:8 [G3 D4]:8 [A3 E4]:4 [E3 B3]:8 [D4 A4]:8 [C#4 G#4]:8 | [A3 E4]:2 r:2")],
+     "A ff riff, Leslie fast: overdrive grit."),
+    ("organ_dynamics", "organ:rock", "@p [E3 B3 E4]:1 | @mf [E3 B3 E4]:1 | @ff [E3 B3 E4]:1 | r:1",
+     "The same chord at p, mf, ff: the expression pedal makes it louder and dirtier."),
+    ("organ_soft", "organ:soft", "[C4 E4 G4]:1 | [A3 C4 E4]:1 | [F3 A3 C4]:1 | [G3 B3 D4]:1",
+     "Soft registration for ballads: mellow, almost clean."),
 ]
 
 TEMPLATE = """beat: 0.1
@@ -47,30 +68,43 @@ meta: {{ title: {name}, tempo: 100, time: 4/4 }}
 instruments:
   {pid}: {{ {spec} }}
 sections:
-  a:
-    bars: {bars}
-    parts:
-      {pid}: {{ notes: "{notes}" }}
-form: [a]
+{sections}
+form: [{form}]
 """
 
 
+def clip_song(name: str, kind: str, notes) -> str:
+    if kind == "bass":
+        pid, spec = "bs", "type: bass"
+    elif kind.startswith("organ:"):
+        pid, spec = "org", f"type: organ, model: {{ registration: {kind[6:]} }}"
+    else:
+        pid, spec = "gt", f"type: guitar, tone: {kind}"
+    parts = notes if isinstance(notes, list) else [(None, notes)]
+    sections = []
+    for i, (speed, text) in enumerate(parts):
+        extra = f"leslie: {speed}, " if speed else ""
+        sections.append(f"  s{i}:\n    bars: {text.count('|') + 1}\n    parts:\n"
+                        f"      {pid}: {{ {extra}notes: \"{text}\" }}")
+    return TEMPLATE.format(name=name, pid=pid, spec=spec, sections="\n".join(sections),
+                           form=", ".join(f"s{i}" for i in range(len(parts))))
+
+
 def render_both(song, compiled, path: Path, parts=None) -> None:
-    for engine, suffix in (("waveguide", "new"), ("ks", "old")):
+    for k, suffix in ((0, "new"), (1, "old")):
         for inst in song.instruments.values():
-            if inst.type in ("guitar", "bass"):
-                inst.model = {**inst.model, "engine": engine}
+            if inst.type in ENGINES:
+                inst.model = {**inst.model, "engine": ENGINES[inst.type][k]}
         write_wav(path.with_suffix(f".{suffix}.wav"), render(compiled, parts))
 
 
 def main() -> int:
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "out/audition")
     out.mkdir(parents=True, exist_ok=True)
-    notes_md = ["# Guitar and bass audition", "",
-                "Each clip: `.new.wav` (waveguide) and `.old.wav` (Karplus-Strong).", ""]
+    notes_md = ["# Guitar, bass and organ audition", "",
+                "Each clip: `.new.wav` (waveguide / tonewheel) and `.old.wav` (Karplus-Strong / old drawbar).", ""]
     for i, (name, tone, notes, listen) in enumerate(CLIPS, 1):
-        pid, spec = ("bs", "type: bass") if tone == "bass" else ("gt", f"type: guitar, tone: {tone}")
-        text = TEMPLATE.format(name=name, pid=pid, spec=spec, bars=notes.count("|") + 1, notes=notes)
+        text = clip_song(name, tone, notes)
         diags = Diagnostics()
         song = load_song(text, diags)
         compiled = compile_song(song, diags) if song else None
@@ -82,11 +116,12 @@ def main() -> int:
         print(f"{i:02d}_{name}")
 
     _, song, compiled = _load("examples/demo.beat.yaml")
-    for name, itype in (("90_demo_guitars", "guitar"), ("91_demo_bass", "bass")):
+    for name, itype in (("90_demo_guitars", "guitar"), ("91_demo_bass", "bass"), ("93_demo_organ", "organ")):
         render_both(song, compiled, out / name, [p for p, i in song.instruments.items() if i.type == itype])
     render_both(song, compiled, out / "92_demo_full")
     notes_md += ["90. **demo_guitars**: both demo guitar parts without the band.",
-                 "91. **demo_bass**: the demo bass part alone.", "92. **demo_full**: the whole demo."]
+                 "91. **demo_bass**: the demo bass part alone.", "92. **demo_full**: the whole demo.",
+                 "93. **demo_organ**: the demo organ part alone."]
     (out / "README.md").write_text("\n".join(notes_md) + "\n")
     print(f"wrote {out}")
     return 0

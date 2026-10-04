@@ -9,6 +9,7 @@ import yaml
 from .diagnostics import Diagnostics, did_you_mean, loc
 from .notation import DYNAMICS, Item, fmt_beats, parse_grid, parse_hits, parse_notes
 from .pitch import parse_chord, parse_pitch
+from .synth import registration
 from .synth.engine import ENGINES
 
 SPEC_VERSION = "0.1"
@@ -18,7 +19,7 @@ META_KEYS = {"title", "tempo", "time", "key", "style"}
 INSTRUMENT_KEYS = {"type", "tuning", "frets", "tone", "model"}
 PATTERN_KEYS = {"type", "bars", "notes", "grid", "hits", "steps"}
 SECTION_KEYS = {"bars", "tempo", "dynamic", "chords", "parts", "extends"}
-PART_KEYS = {"notes", "grid", "hits", "use", "steps", "transpose", "replace", "add", "dynamic"}
+PART_KEYS = {"notes", "grid", "hits", "use", "steps", "transpose", "replace", "add", "dynamic", "leslie"}
 REPLACE_KEYS = {"notes", "grid", "hits", "use", "steps", "transpose"}
 ADD_KEYS = {"grid", "hits", "use", "steps"}
 
@@ -70,6 +71,7 @@ class Section:
     chords: list[list[ChordSpan]] | None
     parts: dict[str, list[list[Item]]]
     extends: str | None = None  # the section this one was derived from
+    controls: dict[str, dict[str, str]] = field(default_factory=dict)  # part -> settings held for the section
 
 
 @dataclass
@@ -211,6 +213,8 @@ def _load_instruments(raw, diags: Diagnostics) -> dict[str, Instrument]:
         if engine is not None and engine not in ENGINES[itype]:
             diags.error(f"{where} > model > engine", f"unknown engine {engine!r} for {itype}; available: "
                                                      f"{', '.join(ENGINES[itype])}{did_you_mean(engine, ENGINES[itype])}")
+        if itype == "organ":
+            _check_organ_model(inst.model, where, diags)
         if itype in DEFAULT_TUNING:
             try:
                 inst.tuning = tuple(parse_pitch(str(n)) for n in spec.get("tuning", DEFAULT_TUNING[itype]))
@@ -230,6 +234,15 @@ def _load_instruments(raw, diags: Diagnostics) -> dict[str, Instrument]:
                 inst.tone = "crunch"
         out[pid] = inst
     return out
+
+
+def _check_organ_model(model, where: str, diags: Diagnostics) -> None:
+    if not isinstance(model, dict):
+        diags.error(f"{where} > model", "model must be a mapping, e.g. { registration: rock }")
+        return
+    _warn_unknown(model, registration.MODEL_KEYS, f"{where} > model", diags)
+    for key, msg in registration.parse(model)[1]:
+        diags.error(f"{where} > model > {key}", msg)
 
 
 def _resolve_extends(raw, diags: Diagnostics) -> dict[str, dict]:
@@ -290,7 +303,21 @@ def _load_section(sid: str, raw: dict, song: Song, patterns: dict, diags: Diagno
                                           f"(declare it under instruments)")
             continue
         section.parts[pid] = _load_part(spec, song.instruments[pid], section, song, patterns, diags)
+        if song.instruments[pid].type == "organ":
+            section.controls[pid] = {"leslie": _leslie(spec, f"{sid} > {pid} > leslie", diags)}
+        elif isinstance(spec, dict) and "leslie" in spec:
+            diags.error(f"{sid} > {pid} > leslie",
+                        f"'leslie' only applies to organ parts, not {song.instruments[pid].type}")
     return section
+
+
+def _leslie(spec, where: str, diags: Diagnostics) -> str:
+    """Leslie rotor speed for an organ part in this section (default slow)."""
+    value = spec.get("leslie", "slow") if isinstance(spec, dict) else "slow"
+    if value not in registration.LESLIE:
+        diags.error(where, f"leslie must be slow or fast, got {value!r}{did_you_mean(str(value), registration.LESLIE)}")
+        return "slow"
+    return value
 
 
 def _parse_chords(raw, bars: int, bar_beats: Fraction, where: str,

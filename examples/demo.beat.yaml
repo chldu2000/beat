@@ -106,6 +106,7 @@ sections:
       bs:
         notes: "(C2:8)*8 | (G1:8)*8 | (D2:8)*8 | (E1:8)*8 | (C2:8)*8 | (G1:8)*8 | (D2:8)*8 | (B1:8)*6 A1:8 G1:8"
       org:
+        leslie: fast                      # Leslie speeds up for the chorus, slows again after it
         notes: >-
           [C4 E4 G4]:1 | [B3 D4 G4]:1 | [A3 D4 F#4]:1 | [B3 E4 G4]:1 |
           [C4 E4 G4]:1 | [B3 D4 G4]:1 | [A3 D4 F#4]:1 | [B3 D#4 F#4]:1
