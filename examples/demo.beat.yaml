@@ -142,8 +142,10 @@ performance:
     - { part: gt2, section: chorus, instance: 2, bar: 8, beat: 3, pitch: F#4, velocity: "+0.1" }
 
 mix:
+  space: studio
   dr:  { gain_db: 0 }
   bs:  { gain_db: -1 }
   gt1: { gain_db: -2, pan: -0.35 }
-  gt2: { gain_db: -3, pan: 0.35 }
+  gt2: { gain_db: -3, pan: 0.35, reverb: more }
   org: { gain_db: -6, pan: 0.15 }
+  master: { style: rock, loudness: -14 }

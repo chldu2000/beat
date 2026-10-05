@@ -32,7 +32,12 @@ authoritative format reference — read it before writing. `examples/demo.beat.y
 6. **Organ**: choose its sound once with `model: { registration: ... }` (SPEC section 3), shape it per
    section with `dynamic` (it has no touch sensitivity; `!acc` does nothing) and `leslie: fast` where
    the section should lift (usually choruses and solos).
-7. Keep repeated material in `patterns` and vary it with `replace` (whole bars, optionally
+7. **Mix** (`mix:`, SPEC section 10) last, and only where the defaults don't fit: every part already
+   gets EQ, compression and the shared room. Usually set `pan` (spread two rhythm guitars left and
+   right, keep bass and drums centered), `gain_db` for balance, `space` for the
+   song's feel (`room` tight, `hall` for ballads) and `reverb: more` on a lead. `beat render` prints a
+   mix report; fix its warnings (the limiter working too hard means a part or the loudness is too high).
+8. Keep repeated material in `patterns` and vary it with `replace` (whole bars, optionally
    transposed) and, for drums, `add` (extra hits such as a crash), so later edits stay local.
 
 When editing an existing song, change only what was asked and keep everything else identical.

@@ -106,7 +106,8 @@ def cmd_midi(args) -> int:
 
 
 def cmd_render(args) -> int:
-    from .render import SR, render, write_wav
+    from .diagnostics import Diagnostic
+    from .render import SR, mixdown, write_wav
 
     diags, song, compiled = _load(args.song, args.sections)
     parts = [p.strip() for p in args.parts.split(",")] if args.parts else None
@@ -117,10 +118,14 @@ def cmd_render(args) -> int:
     if diags.has_errors or compiled is None:
         return _report(diags, compiled, False)
     _print_diags(diags)
-    audio = render(compiled, parts)
+    audio, report = mixdown(compiled, parts, mix=args.mix == "on")
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     write_wav(args.output, audio)
     print(f"wrote {args.output} ({len(audio) / SR:.1f}s)")
+    if report:
+        print("\n".join(report.lines()))
+        for where, msg in report.warnings:
+            print(Diagnostic("warning", where, msg), file=sys.stderr)
     return 0
 
 
@@ -189,6 +194,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-o", "--output", required=True)
     p.add_argument("--parts", help="comma-separated part ids (solo)")
     p.add_argument("--sections", help="comma-separated section ids")
+    p.add_argument("--mix", choices=["on", "off"], default="on",
+                   help="off: only gain_db and pan, peak-normalized (the v0.1 mix, for comparison)")
     p.set_defaults(func=cmd_render)
 
     p = sub.add_parser("voicing", help="list playable voicings of a chord to paste into notes")

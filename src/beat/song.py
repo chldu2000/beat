@@ -6,6 +6,7 @@ from fractions import Fraction
 
 import yaml
 
+from . import mix as mixing
 from .diagnostics import Diagnostics, did_you_mean, loc
 from .notation import DYNAMICS, Item, fmt_beats, parse_grid, parse_hits, parse_notes
 from .pitch import parse_chord, parse_pitch
@@ -84,7 +85,7 @@ class Song:
     sections: dict[str, Section]
     form: list[str]
     performance: dict
-    mix: dict
+    mix: mixing.Mix
 
     @property
     def default_steps(self) -> int:
@@ -153,7 +154,10 @@ def load_song(text: str, diags: Diagnostics) -> Song | None:
 
     song = Song(meta=meta, tempo=float(tempo), time=time, bar_beats=bar_beats,
                 instruments=instruments, sections={}, form=[],
-                performance=data.get("performance") or {}, mix=data.get("mix") or {})
+                performance=data.get("performance") or {}, mix=mixing.Mix())
+    song.mix, problems = mixing.parse(data.get("mix"), {pid: i.type for pid, i in instruments.items()})
+    for level, where, msg in problems:
+        (diags.error if level == "error" else diags.warn)(where, msg)
 
     patterns = data.get("patterns") or {}
     if not isinstance(patterns, dict):

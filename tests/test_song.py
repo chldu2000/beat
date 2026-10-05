@@ -268,7 +268,9 @@ sections:
     audio = render(c, sr=22050)
     assert audio.shape[1] == 2
     assert np.isfinite(audio).all()
-    assert np.abs(audio).max() == pytest.approx(10 ** (-1 / 20), rel=1e-3)
+    assert np.abs(audio).max() <= 10 ** (-1 / 20)
+    old = render(c, sr=22050, mix=False)  # v0.1: peak-normalized to -1 dBFS
+    assert np.abs(old).max() == pytest.approx(10 ** (-1 / 20), rel=1e-3)
 
 
 def test_did_you_mean_suggestions():

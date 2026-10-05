@@ -160,6 +160,8 @@ DEMOS = [  # (name, instrument type or None for the whole band, what it is)
     ("93_demo_organ", "organ", "the demo organ part alone."),
     ("94_demo_drums", "drums", "the demo drum part alone."),
 ]
+MIX_DEMO = ("95_demo_mix", "the whole demo, new engines: `.new` is the mix layer (EQ, compression, shared room, "
+                           "loudness and limiter), `.old` the v0.1 sum (gain, pan, peak normalization).")
 
 
 def main() -> int:
@@ -189,6 +191,15 @@ def main() -> int:
             continue
         parts = [p for p, i in song.instruments.items() if i.type == itype] if itype else None
         render_both(song, compiled, out / name, parts)
+        notes_md.append(f"{name[:2]}. **{name[3:]}**: {what}")
+        print(name)
+    name, what = MIX_DEMO
+    if only in name:
+        for inst in song.instruments.values():
+            if inst.type in ENGINES:
+                inst.model = {**inst.model, "engine": ENGINES[inst.type][0]}
+        for suffix, mix in (("new", True), ("old", False)):
+            write_wav(out / f"{name}.{suffix}.wav", render(compiled, mix=mix))
         notes_md.append(f"{name[:2]}. **{name[3:]}**: {what}")
         print(name)
     if not only:

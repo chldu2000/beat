@@ -359,16 +359,66 @@ performance:
 
 ## 10. 混音层（`mix`）
 
+所有键都可选；什么都不写也会得到按乐器类型调好的默认混音。
+
 ```yaml
 mix:
-  dr:  { gain_db: 0,  pan: 0 }
-  bs:  { gain_db: -1, pan: 0 }
-  gt1: { gain_db: -3, pan: -0.7 }     # pan 的范围是 -1（左）到 1（右）
-  gt2: { gain_db: -3, pan: 0.7 }
-  master: { gain_db: 0 }
+  space: studio                        # 整支乐队共用的空间：dry / room / studio / hall
+  dr:  { gain_db: 0 }
+  bs:  { gain_db: -1, comp: heavy }
+  gt1: { gain_db: -2, pan: -0.6, eq: { mid: -2, high: 1 } }   # pan 的范围是 -1（左）到 1（右）
+  gt2: { gain_db: -3, pan: 0.6, reverb: more }
+  org: { pan: 0.15 }
+  master: { style: rock, loudness: -14 }
 ```
 
-v0.1 只支持 `gain_db` 和 `pan`。渲染器会先做**自动增益**：把每个声部归一化到各乐器类型的目标 RMS（鼓 -16、贝斯 -18、吉他 -20、风琴 -25、钢琴 -21 dBFS），再应用 `gain_db`，所以 `gain_db` 是相对于这个默认平衡的调整。最后会把主输出的峰值归一化到 -1 dBFS。EQ、压缩和混响以后再加。
+**信号链**：每个声部 → 自动增益 → 高通 → EQ → 压缩 → `gain_db` → `pan` → 主输出，同时按 `reverb` 发送到共用空间。主输出 → 总线压缩 → 调到目标响度 → 限幅器（真峰值不超过 -1 dBTP）。
+
+- **自动增益**：先把每个声部归一化到各乐器类型的目标响度（鼓 -20、贝斯 -20、吉他 -20、风琴 -22、钢琴 -20 LUFS），所以 `gain_db` 是相对于这个默认平衡的调整。压缩后的补偿增益会把声部的 RMS 恢复原样，所以 `comp` 只改变动态，不改变平衡。
+- 最终响度由 `master.loudness` 决定，**不是**由 `gain_db` 的总和决定：所有声部一起调高，结果不会变响。
+
+**声部的键**（键名是 `instruments` 里的声部 id）：
+
+| 键 | 取值 | 说明 |
+|---|---|---|
+| `gain_db` | -40 到 20 | 音量调整（dB） |
+| `pan` | -1 到 1 | 声像；立体声声部（鼓、风琴）是左右平衡 |
+| `eq` | `{ low, mid, high }`，每项 -12 到 12 dB | 低频搁架、中频峰值、高频搁架；频率按乐器类型固定，见下表 |
+| `hpf` | 20–1000（Hz）或 `off` | 高通，切掉不需要的低频 |
+| `comp` | `off` / `light` / `medium` / `heavy` | 压缩：`light` 只压最响的地方，`heavy` 让音量很平稳 |
+| `reverb` | `off` / `less` / `normal` / `more` | 发送到共用空间的量 |
+
+各乐器类型的默认设置和 `eq` 的频率：
+
+| 乐器 | `eq` 的 low / mid / high | 高通 | 固定 EQ | `comp` | `reverb` |
+|---|---|---|---|---|---|
+| `drums` | 80 / 400 / 5000 Hz | — | — | `medium`，另加削峰 | `less` |
+| `bass` | 80 / 700 / 2500 Hz | 35 Hz | 250 Hz -1.5 dB | `heavy` | `off` |
+| `guitar` | 120 / 800 / 4000 Hz | 90 Hz | 350 Hz -1.5 dB | `light` | `normal` |
+| `organ` | 100 / 1000 / 4000 Hz | 60 Hz | — | `light` | `normal` |
+| `piano` | 100 / 1000 / 5000 Hz | 50 Hz | — | `light` | `more` |
+
+- 鼓的削峰：鼓槌和镲片的瞬态比鼓的 RMS 高约 21 dB，鼓声部会自带一个快速限幅（RMS 以上 18 dB），免得主输出的限幅器在每下吊镲时把整个乐队压下去。不能用 DSL 修改。
+- 鼓自己的房间（头顶话筒和房间混响，见 `modal` 引擎）保留，`reverb` 是在这之上再送进共用空间。
+
+**`space`**（默认 `studio`）：
+
+| 值 | 混响时间 | 用途 |
+|---|---|---|
+| `dry` | 无 | 不加共用空间 |
+| `room` | 约 0.5 秒 | 小排练室，紧、近 |
+| `studio` | 约 0.8 秒 | 录音棚，大多数摇滚歌曲 |
+| `hall` | 约 1.8 秒 | 大厅，抒情歌、慢歌 |
+
+**`master`**：
+
+| 键 | 取值 | 说明 |
+|---|---|---|
+| `style` | `rock`（默认）/ `gentle` / `none` | 总线压缩的力度：`rock` 把乐队“粘”在一起，`gentle` 保留更多动态，`none` 不压缩（限幅器仍然工作） |
+| `loudness` | -30 到 -6（LUFS），默认 -14 | 目标响度（ITU-R BS.1770 积分响度）。-14 是流媒体的常见基准；调得越高，限幅器压得越狠 |
+| `gain_db` | -20 到 20 | 加到 `loudness` 上 |
+
+**混音报告**：`beat render` 写完文件后会打印整首的响度、真峰值、总线压缩和限幅器的最大压缩量（以及发生的位置和那时最响的声部），以及每个声部单独的响度和压缩量。限幅器压缩超过 6 dB 时给出警告，指出位置和该调的键。`beat render --mix off` 按 v0.1 的做法渲染（自动增益按 RMS：鼓 -16、贝斯 -18、吉他 -20、风琴 -25、钢琴 -21 dBFS，只应用 `gain_db` 和 `pan`，再把峰值归一化到 -1 dBFS），用于对比。
 
 ---
 
@@ -433,7 +483,8 @@ beat validate SONG [--json]                  校验；有错误时退出码为 1
 beat events   SONG [--json] [--parts a,b] [--sections x,y] [--bars 5-8] [--by-bar]
                                              输出编译后的音符；--by-bar 是逐小节的紧凑视图
 beat midi     SONG -o out.mid                导出 MIDI
-beat render   SONG -o out.wav [--parts gt1,bs] [--sections verse,chorus]
+beat render   SONG -o out.wav [--parts gt1,bs] [--sections verse,chorus] [--mix off]
+                                             渲染并打印混音报告（第 10 节）
 beat voicing  CHORD [full|power] [--for guitar|bass|organ|piano] [--tuning D2,A2,...] [--low C3] [--max 6] [--json]
                                              列出和弦的可演奏排列，复制到 notes 里用
 beat analyze  SONG [--json]                  （v0.2）乐理和音频分析报告
@@ -457,7 +508,8 @@ beat analyze  SONG [--json]                  （v0.2）乐理和音频分析报�
 - 吉他、贝斯：弦的物理模型加放大器（旧的 Karplus-Strong 保留为 `ks` 引擎）
 - 风琴：音轮风琴加 Leslie 旋转音箱（旧的加法合成保留为 `drawbar` 引擎）
 - 钢琴：简单的衰减泛音
-- 鼓：减法合成（噪声加衰减的正弦）
+- 鼓：底鼓、军鼓、嗵鼓用物理模型，踩镲和镲片用采样，整组在一个房间里（旧的减法合成保留为 `kit` 引擎）
+- 混音：每个声部的高通、EQ、压缩、声像和混响发送，共用空间，总线压缩、响度归一化和真峰值限幅（第 10 节）
 
 **以后再做：**
 
@@ -466,5 +518,5 @@ beat analyze  SONG [--json]                  （v0.2）乐理和音频分析报�
 - 多个拍号或段落内变速
 - 吉他指定弦和品
 - 渲染滑音、推弦和揉弦
-- EQ、压缩和混响
+- 按段落调整混音（自动化），贝斯被底鼓侧链压缩
 - 编辑界面

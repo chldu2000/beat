@@ -19,6 +19,9 @@ uv run pytest
 
 `notation.py` (text notations) → `song.py` (YAML → resolved sections) → `checks.py` (playability)
 → `compile.py` (timeline, ties, performance layer → events) → `render.py` + `synth/` (audio), `midi.py`.
+`mix.py` resolves the `mix:` settings (presets, per-instrument defaults; no numba); `render.py` runs each
+part's channel strip (`synth/eq.py`, `synth/dynamics.py`), the shared room (`room.py`) and the master
+(glue compressor, BS.1770 loudness, true-peak limiter), and returns a mix report.
 
 `synth/engine.py` maps each instrument type to named engines (`model: { engine: ... }`). Guitar and
 bass share the plucked-string model: `fretboard.py` (string assignment) → `waveguide.py` (numba string
