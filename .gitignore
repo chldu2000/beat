@@ -10,3 +10,4 @@ evals/results/**/beatlog/
 evals/results/**/stderr.txt
 samples/
 DRSKit*.zip
+.DS_Store
