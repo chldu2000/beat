@@ -4,7 +4,7 @@ LLM 作曲编曲 + 代码合成乐器的摇滚乐队。
 
 - 规格：[docs/SPEC.md](docs/SPEC.md)
 - 决策记录：[docs/DECISIONS.md](docs/DECISIONS.md)
-- 示例：[examples/demo.beat.yaml](examples/demo.beat.yaml)
+- 示例：[examples/demo.beat.yaml](examples/demo.beat.yaml)，[examples/neon_asphalt.beat.yaml](examples/neon_asphalt.beat.yaml)（完整的器乐硬摇滚：小调主歌、大调副歌、16 小节吉他 solo）
 
 ```sh
 uv sync
