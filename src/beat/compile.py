@@ -13,6 +13,7 @@ from .song import Section, Song
 ACCENT = 0.12
 GHOST = 0.35
 DEFAULT_STRUM_MS = {"guitar": 8.0}
+LATE_ARTS = ("vib", "bend")  # may start on a tied continuation; the event records when (`arts.at`, beats in)
 NO_TOUCH = {"organ"}  # keyboards whose loudness does not follow the key stroke: accents are ignored
 PERF_KEYS = {"seed", "humanize", "swing", "parts", "edits"}
 PART_PERF_KEYS = {"humanize", "swing", "offset_ms", "velocity", "strum_ms", "lanes"}
@@ -178,9 +179,18 @@ def _part_events(song: Song, pid: str, instances: list[Instance], diags: Diagnos
                        "beat": float(item.onset + 1), "global_bar": ins.global_bar + bi}
 
                 new_pending: dict[int, Event] = {}
+                if pending:
+                    ignored = sorted(a for a in item.arts if a not in LATE_ARTS)
+                    if ignored:
+                        diags.warn(where, f"{', '.join('!' + a for a in ignored)} on a tied note has no effect; "
+                                          f"put it on the first note of the tie")
                 for rank, p in enumerate(item.pitches):
                     if p in pending:
                         ev = pending[p]
+                        for a in LATE_ARTS:
+                            if a in item.arts and a not in ev.arts:
+                                ev.arts[a] = item.arts[a]
+                                ev.arts.setdefault("at", {})[a] = float(ev.beats)
                         ev.beats += item.dur
                     else:
                         ev = Event(pid, bar_start + item.onset, item.dur, p, item.lane, level,

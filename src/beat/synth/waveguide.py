@@ -6,7 +6,8 @@ with a cubic Lagrange fractional delay, a cascade of first-order allpasses for s
 (inharmonicity) and a one-pole loss filter. The string is driven by a list of segments, each
 holding loop parameters from its start sample on: a new note changes the delay (fret), damping
 changes the loss filter, and a re-pluck first scales the existing vibration down (the pick stops
-the string). Excitations are added at the loop input. The output is the bridge-pickup tap.
+the string). Excitations are added at the loop input. Pitch-bend blocks (bends, vibrato, slides)
+add a per-sample offset to the delay. The output is the bridge-pickup tap.
 """
 
 from functools import lru_cache
@@ -22,8 +23,11 @@ MAX_POLE = 0.9  # loss filter pole; beyond this the filter eats the fundamental'
 
 @njit(cache=True)
 def run_string(out, buf_len_pow2, seg_start, seg_delay, seg_g, seg_a, seg_c, seg_tap, seg_stop, seg_glide,
-               exc_start, exc_off, exc_len, exc_data):
-    """Run one string and add its pickup signal into `out`. Segments and excitations sorted by start."""
+               exc_start, exc_off, exc_len, exc_data, mod_start, mod_off, mod_len, mod_data):
+    """Run one string and add its pickup signal into `out`.
+
+    Segments, excitations and delay-offset blocks are sorted by start; blocks do not overlap.
+    """
     n_total = out.shape[0]
     size = 1 << buf_len_pow2
     mask = size - 1
@@ -34,6 +38,8 @@ def run_string(out, buf_len_pow2, seg_start, seg_delay, seg_g, seg_a, seg_c, seg
     w = 0
     S = seg_start.shape[0]
     E = exc_start.shape[0]
+    M = mod_start.shape[0]
+    mi = -1
     si = -1
     ei = 0
     cur = -1
@@ -96,9 +102,15 @@ def run_string(out, buf_len_pow2, seg_start, seg_delay, seg_g, seg_a, seg_c, seg
             if glide_left == 0:
                 d = d_target
 
-        # Cubic Lagrange read of y[n - d], taps at delays m0 .. m0 + 3 with m0 = floor(d) - 1.
-        m0 = int(np.floor(d)) - 1
-        f = d - m0
+        while mi + 1 < M and mod_start[mi + 1] <= n:
+            mi += 1
+        dd = d
+        if mi >= 0 and n - mod_start[mi] < mod_len[mi]:
+            dd = max(2.0, d + mod_data[mod_off[mi] + n - mod_start[mi]])
+
+        # Cubic Lagrange read of y[n - dd], taps at delays m0 .. m0 + 3 with m0 = floor(dd) - 1.
+        m0 = int(np.floor(dd)) - 1
+        f = dd - m0
         h0 = -(f - 1.0) * (f - 2.0) * (f - 3.0) / 6.0
         h1 = f * (f - 2.0) * (f - 3.0) / 2.0
         h2 = -f * (f - 1.0) * (f - 3.0) / 2.0
@@ -126,7 +138,7 @@ def run_string(out, buf_len_pow2, seg_start, seg_delay, seg_g, seg_a, seg_c, seg
             quiet += 1
         else:
             quiet = 0
-        if quiet > d + 8:
+        if quiet > dd + 8:
             nxt = n_total
             if si + 1 < S:
                 nxt = seg_start[si + 1]

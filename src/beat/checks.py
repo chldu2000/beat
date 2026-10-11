@@ -8,6 +8,14 @@ from .pitch import pitch_name
 from .song import Instrument, Section, Song
 
 MAX_FRET_SPAN = 4  # highest fretted note minus lowest fretted note
+# Natural harmonics: semitones above the open string -> (harmonic number, fret over the node).
+HARMONICS = {12: (2, 12), 19: (3, 7), 24: (4, 5), 28: (5, 4), 31: (6, 3)}
+MAX_BEND = {"guitar": 3.0, "bass": 2.0}  # semitones; more is rarely playable
+
+
+def harmonic_strings(pitch: int, tuning: tuple[int, ...]) -> list[int]:
+    """Strings on which `pitch` sounds as a natural harmonic."""
+    return [s for s, o in enumerate(tuning) if pitch - o in HARMONICS]
 
 
 def fingering(pitches: tuple[int, ...], tuning: tuple[int, ...], frets: int) -> list[tuple[int, int]] | None:
@@ -53,6 +61,10 @@ def _check_pitched(inst: Instrument, item: Item, where: str, diags: Diagnostics)
     if not item.pitches:
         return
     at = f"{where}, beat {fmt_beats(item.onset + 1)}"
+    strings = inst.type in ("guitar", "bass")
+    if strings and item.arts.get("harm"):
+        _check_harmonics(inst, item, at, diags)
+        return
     lo, hi = inst.range
     for p in item.pitches:
         if not lo <= p <= hi:
@@ -68,13 +80,46 @@ def _check_pitched(inst: Instrument, item: Item, where: str, diags: Diagnostics)
             diags.error(at, f"[{names}] is not playable: needs one string per note and a fret span "
                             f"of at most {MAX_FRET_SPAN} (open strings excluded)")
 
-    if inst.type not in ("guitar", "bass"):
+    if strings:
+        _check_bend(inst, item, at, diags)
+    else:
         bad = sorted(set(item.arts) & STRING_ARTS)
         if bad:
             diags.warn(at, f"articulation {', '.join('!' + a for a in bad)} does not apply to {inst.type}")
     if inst.type == "organ" and item.arts.get("acc"):
         diags.warn(at, "!acc has no effect on organ (no touch sensitivity); for a louder passage raise the "
                        "dynamic (@f, or the part's dynamic), which also drives the organ harder")
+
+
+def _check_harmonics(inst: Instrument, item: Item, at: str, diags: Diagnostics) -> None:
+    """`!harm` notes are written at the pitch they sound; each needs its own string with that harmonic."""
+    names = " ".join(pitch_name(p) for p in item.pitches)
+
+    def place(i: int, used: frozenset[int]) -> bool:
+        return i == len(item.pitches) or any(
+            place(i + 1, used | {s}) for s in harmonic_strings(item.pitches[i], inst.tuning) if s not in used)
+
+    if not place(0, frozenset()):
+        open_names = ", ".join(pitch_name(o) for o in inst.tuning)
+        diags.error(at, f"{names}!harm is not a natural harmonic on {'distinct strings' if len(item.pitches) > 1 else 'any string'}"
+                        f" (write the sounding pitch: an open string ({open_names}) plus 12, 19, 24, 28 or 31 "
+                        f"semitones, i.e. over fret 12, 7, 5, 4 or 3); or drop !harm")
+    if any(a in item.arts for a in ("bend", "sl", "h", "p")):
+        diags.warn(at, "natural harmonics cannot be bent, slid or played legato; that articulation is ignored")
+
+
+def _check_bend(inst: Instrument, item: Item, at: str, diags: Diagnostics) -> None:
+    bend = item.arts.get("bend")
+    names = " ".join(pitch_name(p) for p in item.pitches)
+    if bend is not None and bend > MAX_BEND[inst.type]:
+        diags.warn(at, f"{names}!bend={bend:g}: bends over {MAX_BEND[inst.type]:g} semitones are rarely playable "
+                       f"on {inst.type}; write a higher fretted note with a smaller bend")
+    if bend is not None or item.arts.get("vib"):
+        for p in item.pitches:
+            if not any(1 <= p - o <= inst.frets for o in inst.tuning):
+                what = "bent" if bend is not None else "given vibrato"
+                diags.warn(at, f"{pitch_name(p)} can only be played on an open string, which cannot be {what}; "
+                               f"move the note up an octave or drop the articulation")
 
 
 def _check_limbs(items: list[Item], where: str, diags: Diagnostics) -> None:

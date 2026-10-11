@@ -1,16 +1,20 @@
 """Plucked electric strings (guitar, bass): fret assignment -> one persistent waveguide per string -> pickup.
 
 Notes become commands to the string they are played on: a stroke (excitation plus a partial stop
-of what was ringing), a fret change without a new stroke for `!h` / `!p`, and damping when the
-fretting hand releases the note. Palm mutes and dead notes are loss settings of the same loop.
+of what was ringing), a fret change without a new stroke for `!h` / `!p` / `!sl`, and damping when
+the fretting hand releases the note. Palm mutes and dead notes are loss settings of the same loop.
+Bends, vibrato and slides are a pitch curve per note (cents against the written pitch) that moves
+the loop delay sample by sample; a natural harmonic (`!harm`) is the loop of the string section
+between the bridge and the node, excited the way the full string would be.
 Instruments differ only in their `StringModel` and in the amp chain after the pickup.
 """
 
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.signal import lfilter
+from scipy.signal import butter, lfilter, sosfilt
 
+from ..checks import HARMONICS
 from ..compile import Event
 from ..song import Instrument
 from . import fretboard, waveguide
@@ -25,6 +29,18 @@ STOP = 0.7  # how much of the ringing a new stroke on the same string stops
 LEGATO_GLIDE_S = 0.0003
 DAMP_GLIDE_S = 0.002  # the loss change moves the loop's tuning delay; glide it so it does not click
 TENSION_GLIDE_S = 0.12  # how long a hard stroke's pitch takes to settle
+LEGATO_GAP = 0.03  # s; a legato note (h / p / sl) this soon after the previous one keeps it ringing
+BEND_S = (0.08, 0.04)  # time to reach a bend: base + per semitone
+VIB_HZ = 5.5
+VIB_DELAY_S = 0.12  # vibrato on a note's own onset starts after this ...
+VIB_RAMP_S = 0.2  # ... and reaches full depth over this
+SLIDE_S = (0.03, 0.012)  # slide time: base + per fret, at most SLIDE_MAX of the note
+SLIDE_MAX = 0.4
+SLIDE_STEP_S = 0.006  # crossing one fret
+SLIDE_IN = 3  # frets below the target that a slide with nothing before it starts from
+SLIDE_NOISE = 0.03  # finger friction on a wound string, relative to a full stroke (plain strings: a third)
+HOLD_S = 0.1  # a bend or vibrato holds this long into the damped release
+HARM_LEVEL = 0.5
 
 
 @dataclass(frozen=True)
@@ -46,6 +62,7 @@ class StringModel:
     width_hard: float  # ... and at full velocity
     noise: float  # stroke noise (pick or finger) relative to the stroke
     tension_cents: float  # a full-velocity stroke starts this much sharp (tension modulation)
+    vib_cents: float = 35.0  # vibrato depth; a fretted string can only be pushed sharp, so it only goes up
 
     def sustain(self, f0: float) -> tuple[float, float]:
         t60 = float(np.clip(self.t60_ref * (self.f_ref / f0) ** 0.5, *self.t60_range))
@@ -84,6 +101,7 @@ class _String:
         self.model = model
         self.segs: list[tuple] = []  # (start, delay, g, a, c, tap, stop, glide)
         self.excs: list[tuple[int, np.ndarray]] = []
+        self.mods: list[tuple[int, np.ndarray]] = []  # (start, delay offset per sample); no overlaps
 
     def seg(self, start: int, f0: float, fret: int, B: float, t60: tuple[float, float], sr: int,
             stop: float = 0.0, glide: int = 0) -> None:
@@ -96,16 +114,79 @@ class _String:
         if not self.segs:
             return
         segs = sorted(self.segs, key=lambda s: s[0])
-        excs = sorted(self.excs, key=lambda e: e[0])
         cols = list(zip(*segs))
-        data = np.concatenate([e for _, e in excs]) if excs else np.zeros(1)
-        lens = np.array([len(e) for _, e in excs], dtype=np.int64)
-        offs = np.concatenate([[0], np.cumsum(lens)[:-1]]).astype(np.int64) if excs else lens
         waveguide.run_string(
             out, int(np.ceil(np.log2(max_period + 16))),
             np.array(cols[0], dtype=np.int64), *(np.array(col, dtype=np.float64) for col in cols[1:7]),
-            np.array(cols[7], dtype=np.int64),
-            np.array([s for s, _ in excs], dtype=np.int64), offs, lens, data)
+            np.array(cols[7], dtype=np.int64), *_blocks(_merge(self.excs)), *_blocks(self.mods))
+
+
+def _merge(blocks: list[tuple[int, np.ndarray]]) -> list[tuple[int, np.ndarray]]:
+    """Sum overlapping excitations (the loop plays one at a time)."""
+    out: list[tuple[int, np.ndarray]] = []
+    for start, data in sorted(blocks, key=lambda b: b[0]):
+        if out and start < out[-1][0] + len(out[-1][1]):
+            s0, d0 = out[-1]
+            d = np.zeros(max(len(d0), start - s0 + len(data)))
+            d[:len(d0)] += d0
+            d[start - s0:start - s0 + len(data)] += data
+            out[-1] = (s0, d)
+        else:
+            out.append((start, data))
+    return out
+
+
+def _blocks(blocks: list[tuple[int, np.ndarray]]) -> tuple[np.ndarray, ...]:
+    """(starts, offsets, lengths, data) for the numba loop."""
+    blocks = sorted(blocks, key=lambda b: b[0])
+    lens = np.array([len(d) for _, d in blocks], dtype=np.int64)
+    offs = np.concatenate([[0], np.cumsum(lens)[:-1]]).astype(np.int64) if blocks else lens
+    data = np.concatenate([d for _, d in blocks]) if blocks else np.zeros(1)
+    return np.array([s for s, _ in blocks], dtype=np.int64), offs, lens, data
+
+
+def _smoothstep(x: np.ndarray) -> np.ndarray:
+    x = np.clip(x, 0.0, 1.0)
+    return x * x * (3 - 2 * x)
+
+
+def _pitch_curve(m: StringModel, arts: dict, slide: int, at: dict, dur: float, length: int, sr: int,
+                 rng: np.random.Generator) -> np.ndarray | None:
+    """Cents against the written pitch over `length` samples from the onset, or None if flat.
+
+    `slide`: frets from where a slide starts to the written note (negative = from below).
+    `at`: seconds into the note where a bend or vibrato starts (for one written on a tied note).
+    """
+    bend = arts.get("bend")
+    vib = arts.get("vib")
+    if not (slide or bend or vib):
+        return None
+    t = np.arange(length) / sr
+    cents = np.zeros(length)
+    if slide:
+        # Fret by fret: the pitch steps over each fret wire, smoothed by the finger.
+        k = abs(slide)
+        T = min(SLIDE_S[0] + SLIDE_S[1] * k, SLIDE_MAX * dur)
+        w = min(SLIDE_STEP_S, T / k)
+        crossed = sum(_smoothstep((t - (j + 0.5) * T / k) / w + 0.5) for j in range(k))
+        cents += 100 * slide * (1 - crossed / k)
+    if bend:
+        t0 = at.get("bend", 0.0)
+        cents += 100 * bend * _smoothstep((t - t0) / (BEND_S[0] + BEND_S[1] * bend))
+    if vib:
+        t0 = at["vib"] if "vib" in at else min(VIB_DELAY_S, 0.3 * dur)
+        rate = VIB_HZ * rng.uniform(0.92, 1.08) * (1 + 0.04 * np.sin(2 * np.pi * rng.uniform(0.3, 0.7) * t))
+        phase = 2 * np.pi * np.cumsum(rate) / sr
+        depth = m.vib_cents * rng.uniform(0.85, 1.15) * _smoothstep((t - t0) / VIB_RAMP_S)
+        wave = depth * (0.5 - 0.5 * np.cos(phase - phase[min(length - 1, int(t0 * sr))]))
+        cents += -wave if bend else wave  # on a bent string the hand lets it down a little
+    return cents
+
+
+def _slide_noise(length: int, wound: bool, vel: float, sr: int, rng: np.random.Generator) -> np.ndarray:
+    sos = butter(2, (600.0, min(4000.0, 0.45 * sr)), "bandpass", fs=sr, output="sos")
+    env = np.hanning(length + 2)[1:-1]
+    return sosfilt(sos, rng.normal(0, 1, length)) * env * SLIDE_NOISE * vel * (1.0 if wound else 0.33)
 
 
 def strings_signal(model: StringModel, inst: Instrument, events: list[Event], n: int, sr: int,
@@ -121,42 +202,82 @@ def strings_signal(model: StringModel, inst: Instrument, events: list[Event], n:
         notes.sort(key=lambda nf: nf[0].time)
         string = _String(model)
         open_pitch = inst.tuning[s]
+        f_open = 440.0 * 2 ** ((open_pitch - 69) / 12)
         for i, (ev, fret) in enumerate(notes):
             start = max(0, int(round(ev.time * sr)))
             if start >= n:
                 break
-            cents = rng.normal(0, 1.0)
-            f0 = 440.0 * 2 ** ((ev.pitch - 69) / 12 + cents / 1200)
-            period = sr / f0
-            B = model.stiffness(open_pitch, fret)
-            length = model.scale_m * 2 ** (-fret / 12)
-            vel = float(np.clip(ev.velocity * rng.normal(1, 0.04), 0.05, 1.0))
             arts = ev.arts
+            prev = notes[i - 1] if i > 0 else None
+            joined = prev is not None and ev.time - (prev[0].time + prev[0].dur) < LEGATO_GAP
+            cents = rng.normal(0, 1.0)
+            harm = HARMONICS.get(ev.pitch - open_pitch) if arts.get("harm") else None
+            if harm:
+                # Touched over the node: only the section from the bridge to the node keeps ringing.
+                k, _ = harm
+                f0 = f_open * k * 2 ** (cents / 1200)
+                B = model.stiffness(open_pitch, 0) * k * k
+                fret_len = 12 * np.log2(k)
+            else:
+                f0 = 440.0 * 2 ** ((ev.pitch - 69) / 12 + cents / 1200)
+                B = model.stiffness(open_pitch, fret)
+                fret_len = fret
+            period = sr / f0
+            length = model.scale_m * 2 ** (-fret_len / 12)
+            vel = float(np.clip(ev.velocity * rng.normal(1, 0.04), 0.05, 1.0))
             t60 = DEAD if arts.get("x") else PALM_MUTE if arts.get("pm") else model.sustain(f0)
+            slide = 0
 
-            if (arts.get("h") or arts.get("p")) and i > 0:
-                # Fret change on a ringing string: no stroke, only the finger's tap or pluck.
-                string.seg(start, f0, fret, B, t60, sr, glide=int(LEGATO_GLIDE_S * sr))
-                beta, amp_ = (0.08, 0.35 * vel) if arts.get("h") else (0.06, 0.5 * vel)
-                string.excs.append((start, _excitation(period, beta, amp_, 0.0008, 0.0, sr, rng)))
+            if not harm and (arts.get("h") or arts.get("p") or arts.get("sl")) and joined:
+                # Fret change on a ringing string: no stroke, only the finger's tap, pluck or slide.
+                if arts.get("sl"):
+                    string.seg(start, f0, fret, B, t60, sr)
+                    p_from = prev[0].pitch + prev[0].arts.get("bend", 0)
+                    slide = int(round(p_from - ev.pitch))
+                    if slide:
+                        T = min(SLIDE_S[0] + SLIDE_S[1] * abs(slide), SLIDE_MAX * ev.dur)
+                        string.excs.append((start, _slide_noise(max(2, int(T * sr)),
+                                                                open_pitch < model.plain_from, vel, sr, rng)))
+                else:
+                    string.seg(start, f0, fret, B, t60, sr, glide=int(LEGATO_GLIDE_S * sr))
+                    beta, amp_ = (0.08, 0.35 * vel) if arts.get("h") else (0.06, 0.5 * vel)
+                    string.excs.append((start, _excitation(period, beta, amp_, 0.0008, 0.0, sr, rng)))
             else:
                 if model.tension_cents > 0:
                     # A hard stroke stretches the string: start sharp, settle to pitch.
                     sharp = f0 * 2 ** (model.tension_cents * vel * vel / 1200)
-                    string.seg(start, sharp, fret, B, t60, sr, stop=STOP)
-                    string.seg(start + 1, f0, fret, B, t60, sr, glide=int(TENSION_GLIDE_S * sr))
+                    string.seg(start, sharp, fret_len, B, t60, sr, stop=STOP)
+                    string.seg(start + 1, f0, fret_len, B, t60, sr, glide=int(TENSION_GLIDE_S * sr))
                 else:
-                    string.seg(start, f0, fret, B, t60, sr, stop=STOP)
+                    string.seg(start, f0, fret_len, B, t60, sr, stop=STOP)
+                if arts.get("sl") and not harm:
+                    slide = -min(SLIDE_IN, fret)  # nothing to slide from: slide in from a few frets below
                 beta = min(0.45, model.pluck_m / length * rng.uniform(0.9, 1.1))
                 width = (model.width_soft - (model.width_soft - model.width_hard) * vel) * rng.uniform(0.85, 1.15)
                 noise = 0.6 if arts.get("x") else model.noise
-                string.excs.append((start, _excitation(period, beta, vel ** 1.2, width, noise, sr, rng)))
+                amp_ = vel ** 1.2
+                if harm:
+                    width, amp_ = width * 2, amp_ * HARM_LEVEL
+                string.excs.append((start, _excitation(period, beta, amp_, width, noise, sr, rng)))
 
             end = int(round((ev.time + ev.dur) * sr))
-            nxt = notes[i + 1][0].time if i + 1 < len(notes) else None
-            if end < n and (nxt is None or nxt > ev.time + ev.dur + RELEASE_GAP):
-                string.seg(end, f0, fret, B, DAMPED, sr, glide=int(DAMP_GLIDE_S * sr))
-        string.run(out, sr, sr / (440.0 * 2 ** ((open_pitch - 69) / 12)) * 1.1)
+            nxt = notes[i + 1][0] if i + 1 < len(notes) else None
+            legato_next = nxt is not None and nxt.time - (ev.time + ev.dur) < LEGATO_GAP \
+                and any(nxt.arts.get(a) for a in ("h", "p", "sl")) and not nxt.arts.get("harm")
+            if end < n and not legato_next and (nxt is None or nxt.time > ev.time + ev.dur + RELEASE_GAP):
+                string.seg(end, f0, fret_len, B, DAMPED, sr, glide=int(DAMP_GLIDE_S * sr))
+
+            if not harm:
+                stop_at = min(n, end + int(HOLD_S * sr))
+                if nxt is not None:
+                    stop_at = min(stop_at, max(0, int(round(nxt.time * sr))))
+                beats = float(ev.beats) or 1.0
+                at = {a: b / beats * ev.dur for a, b in (arts.get("at") or {}).items()}
+                curve = _pitch_curve(model, arts, slide, at, ev.dur, stop_at - start, sr, rng) \
+                    if stop_at > start else None
+                if curve is not None:
+                    string.mods.append((start, period * (2 ** (-curve / 1200) - 1)))
+        string.run(out, sr, sr / f_open * 1.1)
 
     b, a = _pickup_filter(model, sr)
     return lfilter(b, a, out) * model.level

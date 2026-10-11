@@ -344,3 +344,30 @@ form: [a]
     assert "a > org > leslie: leslie must be slow or fast" in errors
     assert "'leslie' only applies to organ parts, not guitar" in errors
     assert "unknown key 'percusion'" in messages(diags, "warning")
+
+
+def test_string_articulation_checks():
+    diags, c = build("""
+sections:
+  a:
+    bars: 1
+    parts:
+      gt: { notes: "A4:2~ A4:4!vib!pm C5:8!harm E2:8!bend=1" }
+""")
+    errors, warns = messages(diags), messages(diags, "warning")
+    assert "C5!harm is not a natural harmonic on any string" in errors
+    assert "!pm on a tied note has no effect" in warns
+    assert "E2 can only be played on an open string" in warns
+    vib = next(e for e in c.events if e.pitch == parse_pitch("A4"))
+    assert vib.arts == {"vib": True, "at": {"vib": 2.0}}
+
+
+def test_bend_must_be_positive():
+    diags, _ = build("""
+sections:
+  a:
+    bars: 1
+    parts:
+      gt: { notes: "A4:1!bend=-1" }
+""")
+    assert "must be above 0" in messages(diags)

@@ -3,12 +3,14 @@
 Notes starting at the same score position form a chord. Each chord takes the playable fingering
 (distinct strings, fret span within one hand) that moves the hand least, keeps legato notes
 (`!h`, `!p`, `!sl`) on the string of the previous note, and avoids cutting a note that is still held.
+Bent notes and vibrato avoid open strings; natural harmonics (`!harm`) go over the node of a string
+that has them, with the node's fret standing in for the fret.
 """
 
 from collections.abc import Iterator
 from itertools import groupby
 
-from ..checks import MAX_FRET_SPAN
+from ..checks import HARMONICS, MAX_FRET_SPAN
 from ..compile import Event
 
 LEGATO_ARTS = ("h", "p", "sl")
@@ -18,14 +20,19 @@ OPEN_REACH = 5  # from this hand position on, open strings are a stretch
 
 
 def fingerings(pitches: tuple[int, ...], tuning: tuple[int, ...], frets: int,
-               span: int = MAX_FRET_SPAN) -> Iterator[tuple[tuple[int, int], ...]]:
-    """Every (string, fret) assignment on distinct strings with fretted notes within `span` frets."""
+               span: int = MAX_FRET_SPAN, harm: bool = False) -> Iterator[tuple[tuple[int, int], ...]]:
+    """Every (string, fret) assignment on distinct strings with fretted notes within `span` frets.
+
+    With `harm`, the pitches are natural harmonics and the fret is the one over the node.
+    """
     def search(i: int, used: tuple[tuple[int, int], ...]) -> Iterator[tuple[tuple[int, int], ...]]:
         if i == len(pitches):
             yield used
             return
         for s, open_pitch in enumerate(tuning):
             fret = pitches[i] - open_pitch
+            if harm:
+                fret = HARMONICS[fret][1] if fret in HARMONICS else -1
             if not 0 <= fret <= frets or any(s == us for us, _ in used):
                 continue
             fretted = [f for _, f in used if f > 0] + ([fret] if fret > 0 else [])
@@ -66,7 +73,10 @@ def assign(events: list[Event], tuning: tuple[int, ...], frets: int) -> list[tup
         idx = list(grp)
         pitches = tuple(events[i].pitch for i in idx)
         onset = min(events[i].time for i in idx)
-        legato = len(idx) == 1 and any(events[idx[0]].arts.get(a) for a in LEGATO_ARTS)
+        arts = events[idx[0]].arts
+        harm = bool(arts.get("harm"))
+        legato = len(idx) == 1 and not harm and any(arts.get(a) for a in LEGATO_ARTS)
+        no_open = "bend" in arts or bool(arts.get("vib"))
 
         def cost(fing: tuple[tuple[int, int], ...]) -> float:
             fretted = [f for _, f in fing if f > 0]
@@ -76,6 +86,11 @@ def assign(events: list[Event], tuning: tuple[int, ...], frets: int) -> list[tup
                 c += 0.02 * min(fretted)  # mild preference for lower positions
             if hand is not None and hand >= OPEN_REACH:
                 c += 0.6 * (len(fing) - len(fretted))  # open strings sound different up the neck
+            if harm:
+                c += sum(HARMONICS[pitches[j] - tuning[s]][0] for j, (s, _) in enumerate(fing)
+                         if pitches[j] - tuning[s] in HARMONICS)  # low harmonics ring louder and in tune
+            if no_open:
+                c += 10.0 * (len(fing) - len(fretted))  # an open string cannot be bent
             for s, _ in fing:
                 if sounding.get(s, -1.0) > onset + HELD_EPS:
                     c += 4.0  # would cut a note that is still held
@@ -83,7 +98,9 @@ def assign(events: list[Event], tuning: tuple[int, ...], frets: int) -> list[tup
                 c += 20.0
             return c
 
-        best = min(fingerings(pitches, tuning, frets), key=cost, default=None) or _fallback(pitches, tuning)
+        best = min(fingerings(pitches, tuning, frets, harm=harm), key=cost, default=None) \
+            or (min(fingerings(pitches, tuning, frets), key=cost, default=None) if harm else None) \
+            or _fallback(pitches, tuning)
         for i, sf in zip(idx, best):
             result[i] = sf
             sounding[sf[0]] = events[i].time + events[i].dur

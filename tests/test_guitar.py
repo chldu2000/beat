@@ -118,3 +118,56 @@ def test_unknown_engine_is_an_error():
     diags = Diagnostics()
     load_song(text, diags)
     assert any("did you mean 'waveguide'" in str(d) for d in diags.items)
+
+
+def f0_at(y: np.ndarray, t0: float, t1: float, guess: float) -> float:
+    seg = y[int(t0 * SR):int(t1 * SR)] * np.hanning(int(t1 * SR) - int(t0 * SR))
+    nfft = 16 * len(seg)
+    spec = np.abs(np.fft.rfft(seg, nfft))
+    f = np.fft.rfftfreq(nfft, 1 / SR)
+    return float(f[np.argmax(np.where((f > guess * 0.85) & (f < guess * 1.15), spec, 0))])
+
+
+def cents(f: float, pitch: int) -> float:
+    return 1200 * np.log2(f / (440 * 2 ** ((pitch - 69) / 12)))
+
+
+def test_bend_reaches_the_target_and_avoids_open_strings():
+    note = ev(64, d=2.0, bend=2.0)  # E4 bent a whole tone: on the B string, not the open high E
+    assert assign([note], STANDARD, 22)[0] == (4, 5)
+    y = strings([note], 2.0)
+    assert abs(cents(f0_at(y, 0.02, 0.06, 330), 64)) < 60  # starts at the fretted pitch
+    assert abs(cents(f0_at(y, 0.5, 1.5, 370), 66)) < 5
+
+
+def test_vibrato_only_pushes_the_pitch_up():
+    y = strings([ev(69, d=2.0, vib=True)], 2.0)
+    track = [cents(f0_at(y, t, t + 0.06, 440), 69) for t in np.arange(0.5, 1.8, 0.02)]
+    assert max(track) - min(track) > 20
+    assert min(track) > -8
+
+
+def test_vibrato_on_a_tied_note_starts_there():
+    y = strings([ev(69, d=2.0, beat=0, vib=True, at={"vib": 0.5})], 2.0)
+    early = [cents(f0_at(y, t, t + 0.06, 440), 69) for t in np.arange(0.1, 0.4, 0.02)]
+    late = [cents(f0_at(y, t, t + 0.06, 440), 69) for t in np.arange(1.0, 1.8, 0.02)]
+    assert max(early) - min(early) < 8 < max(late) - min(late)
+
+
+def test_slide_moves_from_the_previous_note_without_a_new_stroke():
+    notes = [ev(57, d=0.5), ev(62, t=0.5, d=1.5, beat=1, sl=True)]
+    pos = assign(notes, STANDARD, 22)
+    assert pos[0][0] == pos[1][0]
+    y = strings(notes, 2.0)
+    assert abs(cents(f0_at(y, 0.8, 1.8, 294), 62)) < 5
+    picked = strings([ev(57, d=0.5), ev(62, t=0.5, d=1.5, beat=1)], 2.0)
+    attack = lambda s: np.abs(s[int(0.5 * SR):int(0.52 * SR)]).max()
+    assert attack(y) < attack(picked)
+
+
+def test_natural_harmonic_sounds_its_written_pitch():
+    note = ev(83, d=2.0, harm=True)  # B5: the 7th-fret harmonic of the high E, not the flat 4th-fret one of G
+    assert assign([note], STANDARD, 22)[0] == (5, 7)
+    y = strings([note], 2.0)
+    assert abs(cents(f0_at(y, 0.2, 1.2, 988), 83)) < 6
+    assert np.isfinite(y).all()

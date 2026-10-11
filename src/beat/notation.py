@@ -160,6 +160,9 @@ def parse_notes(text: str, bar_beats: Fraction, level: float) -> tuple[list[list
                 elif name in VALUED_ARTS:
                     if not value:
                         problems.append((bi, f"'!{name}' needs a value, e.g. '!{name}=2'"))
+                    elif float(value) <= 0:
+                        problems.append((bi, f"'!{name}={value}' in '{tok}' must be above 0: it is how many "
+                                             f"semitones the written (fretted) note is bent up"))
                     else:
                         arts[name] = float(value)
                 else:
