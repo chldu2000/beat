@@ -50,7 +50,11 @@ def select(events: list[Event], parts: list[str] | None = None,
 
 
 def _arts(arts: dict) -> str:
-    return "".join(f"!{k}" if v is True else f"!{k}={v:g}" for k, v in arts.items())
+    """`!vib!bend=2`; techniques starting on a tied note follow as `~@AT!...` (AT beats into the note)."""
+    out = "".join(f"!{k}" if v is True else f"!{k}={v:g}" for k, v in arts.items() if k != "tied")
+    for t in arts.get("tied", []):
+        out += f"~@{fmt_pos(Fraction(t['at']).limit_denominator(48))}" + _arts({k: v for k, v in t.items() if k != "at"})
+    return out
 
 
 def table(compiled: Compiled, events: list[Event]) -> str:

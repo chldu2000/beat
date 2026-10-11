@@ -53,3 +53,21 @@ def test_events_cli_filters(capsys):
 
     assert main(["events", str(TRICKY), "--parts", "gtr"]) == 1
     assert "unknown part 'gtr' (did you mean 'gt'?)" in capsys.readouterr().err
+
+
+def test_by_bar_shows_techniques_on_tied_notes():
+    song = """
+beat: 0.1
+meta: { tempo: 120, time: 4/4 }
+instruments: { ld: { type: guitar, tone: lead } }
+sections:
+  s:
+    bars: 2
+    parts: { ld: { notes: "A4:2 D5:2!bend=2~ | D5:2!release D5:2!vib" } }
+form: [s]
+"""
+    diags = Diagnostics()
+    c = compile_song(load_song(song, diags), diags)
+    text = by_bar(c, c.events)
+    assert "3:D5/4!bend=2~@2!release" in text
+    assert "3:D5/2!vib" in text
