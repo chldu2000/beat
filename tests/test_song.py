@@ -359,7 +359,7 @@ sections:
     assert "!pm on a tied note has no effect" in warns
     assert "E2 can only be played on an open string" in warns
     vib = next(e for e in c.events if e.pitch == parse_pitch("A4"))
-    assert vib.arts == {"vib": True, "at": {"vib": 2.0}}
+    assert vib.arts == {"tied": [{"at": 2.0, "vib": True}]}
 
 
 def test_bend_must_be_positive():
@@ -371,3 +371,17 @@ sections:
       gt: { notes: "A4:1!bend=-1" }
 """)
     assert "must be above 0" in messages(diags)
+
+
+def test_release_needs_a_tie_from_a_bend():
+    diags, c = build("""
+sections:
+  a:
+    bars: 1
+    parts:
+      gt: { notes: "A4:4!bend=2~ A4:4!release C5:4!release D5:8~ D5:8!release" }
+""")
+    assert "!release only applies to a tied note" in messages(diags)
+    assert "!release has no bend to release" in messages(diags, "warning")
+    a4 = next(e for e in c.events if e.pitch == parse_pitch("A4"))
+    assert a4.arts == {"bend": 2.0, "tied": [{"at": 1.0, "release": True}]}

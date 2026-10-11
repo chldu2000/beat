@@ -13,7 +13,9 @@ from .song import Section, Song
 ACCENT = 0.12
 GHOST = 0.35
 DEFAULT_STRUM_MS = {"guitar": 8.0}
-LATE_ARTS = ("vib", "bend")  # may start on a tied continuation; the event records when (`arts.at`, beats in)
+# Articulations that may start on a tied continuation; the event lists them in `arts.tied` as
+# {"at": beats into the note, <art>: value}.
+LATE_ARTS = ("vib", "bend", "release", "fall")
 NO_TOUCH = {"organ"}  # keyboards whose loudness does not follow the key stroke: accents are ignored
 PERF_KEYS = {"seed", "humanize", "swing", "parts", "edits"}
 PART_PERF_KEYS = {"humanize", "swing", "offset_ms", "velocity", "strum_ms", "lanes"}
@@ -179,18 +181,25 @@ def _part_events(song: Song, pid: str, instances: list[Instance], diags: Diagnos
                        "beat": float(item.onset + 1), "global_bar": ins.global_bar + bi}
 
                 new_pending: dict[int, Event] = {}
+                late = {a: v for a, v in item.arts.items() if a in LATE_ARTS}
                 if pending:
                     ignored = sorted(a for a in item.arts if a not in LATE_ARTS)
                     if ignored:
                         diags.warn(where, f"{', '.join('!' + a for a in ignored)} on a tied note has no effect; "
                                           f"put it on the first note of the tie")
+                    first = next(iter(pending.values()))
+                    bent = "bend" in first.arts or any("bend" in t for t in first.arts.get("tied", []))
+                    if "release" in late and not bent:
+                        diags.warn(where, "!release has no bend to release: bend an earlier note of the tie, "
+                                          "e.g. 'A4:4!bend=2~ A4:4!release'")
+                elif item.arts.get("release"):
+                    diags.error(where, "!release only applies to a tied note: tie it from the bent note, "
+                                       "e.g. 'A4:4!bend=2~ A4:4!release'")
                 for rank, p in enumerate(item.pitches):
                     if p in pending:
                         ev = pending[p]
-                        for a in LATE_ARTS:
-                            if a in item.arts and a not in ev.arts:
-                                ev.arts[a] = item.arts[a]
-                                ev.arts.setdefault("at", {})[a] = float(ev.beats)
+                        if late:
+                            ev.arts.setdefault("tied", []).append({"at": float(ev.beats), **late})
                         ev.beats += item.dur
                     else:
                         ev = Event(pid, bar_start + item.onset, item.dur, p, item.lane, level,

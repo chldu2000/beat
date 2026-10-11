@@ -17,7 +17,7 @@ DYNAMICS = {
 }
 
 # Articulations that only make sense on fretted string instruments.
-STRING_ARTS = {"pm", "x", "h", "p", "sl", "bend", "vib", "harm"}
+STRING_ARTS = {"pm", "x", "h", "p", "sl", "bend", "release", "vib", "fall", "harm"}
 ARTS = STRING_ARTS | {"st", "acc"}
 VALUED_ARTS = {"bend"}
 

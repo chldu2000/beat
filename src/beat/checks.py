@@ -104,7 +104,7 @@ def _check_harmonics(inst: Instrument, item: Item, at: str, diags: Diagnostics) 
         diags.error(at, f"{names}!harm is not a natural harmonic on {'distinct strings' if len(item.pitches) > 1 else 'any string'}"
                         f" (write the sounding pitch: an open string ({open_names}) plus 12, 19, 24, 28 or 31 "
                         f"semitones, i.e. over fret 12, 7, 5, 4 or 3); or drop !harm")
-    if any(a in item.arts for a in ("bend", "sl", "h", "p")):
+    if any(a in item.arts for a in ("bend", "release", "sl", "fall", "h", "p")):
         diags.warn(at, "natural harmonics cannot be bent, slid or played legato; that articulation is ignored")
 
 
@@ -114,10 +114,10 @@ def _check_bend(inst: Instrument, item: Item, at: str, diags: Diagnostics) -> No
     if bend is not None and bend > MAX_BEND[inst.type]:
         diags.warn(at, f"{names}!bend={bend:g}: bends over {MAX_BEND[inst.type]:g} semitones are rarely playable "
                        f"on {inst.type}; write a higher fretted note with a smaller bend")
-    if bend is not None or item.arts.get("vib"):
+    if bend is not None or item.arts.get("vib") or item.arts.get("fall"):
         for p in item.pitches:
             if not any(1 <= p - o <= inst.frets for o in inst.tuning):
-                what = "bent" if bend is not None else "given vibrato"
+                what = "bent" if bend is not None else "given vibrato" if item.arts.get("vib") else "slid down"
                 diags.warn(at, f"{pitch_name(p)} can only be played on an open string, which cannot be {what}; "
                                f"move the note up an octave or drop the articulation")
 

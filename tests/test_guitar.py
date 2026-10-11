@@ -148,9 +148,10 @@ def test_vibrato_only_pushes_the_pitch_up():
 
 
 def test_vibrato_on_a_tied_note_starts_there():
-    y = strings([ev(69, d=2.0, beat=0, vib=True, at={"vib": 0.5})], 2.0)
-    early = [cents(f0_at(y, t, t + 0.06, 440), 69) for t in np.arange(0.1, 0.4, 0.02)]
-    late = [cents(f0_at(y, t, t + 0.06, 440), 69) for t in np.arange(1.0, 1.8, 0.02)]
+    note = ev(69, d=2.0, beat=0, tied=[{"at": 0.5, "vib": True}])  # beats = 1, so 0.5 beats = 1 s
+    y = strings([note], 2.0)
+    early = [cents(f0_at(y, t, t + 0.06, 440), 69) for t in np.arange(0.1, 0.9, 0.02)]
+    late = [cents(f0_at(y, t, t + 0.06, 440), 69) for t in np.arange(1.3, 1.9, 0.02)]
     assert max(early) - min(early) < 8 < max(late) - min(late)
 
 
@@ -171,3 +172,17 @@ def test_natural_harmonic_sounds_its_written_pitch():
     y = strings([note], 2.0)
     assert abs(cents(f0_at(y, 0.2, 1.2, 988), 83)) < 6
     assert np.isfinite(y).all()
+
+
+def test_release_brings_a_bend_back_down():
+    note = ev(62, d=2.0, bend=2.0, tied=[{"at": 0.5, "release": True}])  # released after 1 s
+    y = strings([note], 2.0)
+    assert abs(cents(f0_at(y, 0.4, 0.9, 330), 64)) < 8
+    assert abs(cents(f0_at(y, 1.4, 1.9, 294), 62)) < 8
+
+
+def test_fall_slides_down_and_fades_at_the_end():
+    held, fallen = strings([ev(69, d=1.0)], 1.0), strings([ev(69, d=1.0, fall=True)], 1.0)
+    assert abs(cents(f0_at(fallen, 0.2, 0.7, 440), 69)) < 5  # the start of the note is untouched
+    tail = lambda y: band_rms(y, 440.0, 0.9, 1.0)
+    assert tail(fallen) < 0.1 * tail(held)

@@ -44,6 +44,8 @@ CLIPS = [
      "Vibrato from the onset, then a held note whose vibrato starts on the tie (the old engine has none)."),
     ("slides", "lead", "A3:4 E4:4!sl D4:8 C4:8 A3:4 | C4:8 D4:8!sl E4:4!sl G4:4!sl A4:4",
      "Slides from the previous note (no new stroke), the last one slides in from below."),
+    ("release_fall", "lead", "D5:4!bend=2~ D5:4!release B4:4 A4:4!bend=1~ | A4:4!release G4:4 A4:4~ A4:4!fall",
+     "Bends released on the tied note (bend up, let back down), then a held note that slides down and away."),
     ("harmonics", "clean", "[E3 A3 D4 G4 B4 E5]:1!harm | B5:2!harm E6:2!harm | [E4 A4 D5]:1!harm",
      "Natural harmonics over the 12th, 7th and 5th frets: bell-like, written at the pitch they sound."),
     ("bass_single", "bass", "E1:1 | A1:1 | D2:1 | G2:1",

@@ -3,8 +3,8 @@
 Notes become commands to the string they are played on: a stroke (excitation plus a partial stop
 of what was ringing), a fret change without a new stroke for `!h` / `!p` / `!sl`, and damping when
 the fretting hand releases the note. Palm mutes and dead notes are loss settings of the same loop.
-Bends, vibrato and slides are a pitch curve per note (cents against the written pitch) that moves
-the loop delay sample by sample; a natural harmonic (`!harm`) is the loop of the string section
+Bends (and their release on a tied note), vibrato, slides and falls are a pitch curve per note
+(cents against the written pitch) that moves the loop delay sample by sample; a natural harmonic (`!harm`) is the loop of the string section
 between the bridge and the node, excited the way the full string would be.
 Instruments differ only in their `StringModel` and in the amp chain after the pickup.
 """
@@ -39,6 +39,9 @@ SLIDE_MAX = 0.4
 SLIDE_STEP_S = 0.006  # crossing one fret
 SLIDE_IN = 3  # frets below the target that a slide with nothing before it starts from
 SLIDE_NOISE = 0.03  # finger friction on a wound string, relative to a full stroke (plain strings: a third)
+FALL_S = 0.25  # a fall takes the last this-much of the note (at most half of it) ...
+FALL_FRETS = 7  # ... to slide down this many frets
+FALL_LOSS = (0.3, 0.05)  # the finger eases off while it slides away
 HOLD_S = 0.1  # a bend or vibrato holds this long into the damped release
 HARM_LEVEL = 0.5
 
@@ -150,16 +153,40 @@ def _smoothstep(x: np.ndarray) -> np.ndarray:
     return x * x * (3 - 2 * x)
 
 
-def _pitch_curve(m: StringModel, arts: dict, slide: int, at: dict, dur: float, length: int, sr: int,
-                 rng: np.random.Generator) -> np.ndarray | None:
+def _bend_schedule(arts: dict, beats: float, dur: float) -> list[tuple[float, float]]:
+    """(seconds into the note, semitones the string is bent to) for each bend move, in order."""
+    moves = [(0.0, arts["bend"])] if "bend" in arts else []
+    for t in arts.get("tied", []):
+        if "bend" in t or t.get("release"):
+            moves.append((t["at"] / beats * dur, t.get("bend", 0.0) if "bend" in t else 0.0))
+    return moves
+
+
+def _vib_start(arts: dict, beats: float, dur: float) -> float | None:
+    if arts.get("vib"):
+        return min(VIB_DELAY_S, 0.3 * dur)
+    return next((t["at"] / beats * dur for t in arts.get("tied", []) if t.get("vib")), None)
+
+
+def _steps(t: np.ndarray, t0: float, T: float, k: int, ease_in: bool = False) -> np.ndarray:
+    """Frets crossed (0 .. k) by a slide of k frets starting at t0 and taking T seconds."""
+    w = min(SLIDE_STEP_S, T / k)
+    at = [(j + 0.5) / k for j in range(k)]
+    if ease_in:
+        at = [np.sqrt(a) for a in at]  # starts slowly, then lets go
+    return sum(_smoothstep((t - t0 - a * T) / w + 0.5) for a in at)
+
+
+def _pitch_curve(m: StringModel, arts: dict, slide: int, fall: tuple[float, int] | None, beats: float,
+                 dur: float, length: int, sr: int, rng: np.random.Generator) -> np.ndarray | None:
     """Cents against the written pitch over `length` samples from the onset, or None if flat.
 
     `slide`: frets from where a slide starts to the written note (negative = from below).
-    `at`: seconds into the note where a bend or vibrato starts (for one written on a tied note).
+    `fall`: (seconds into the note, frets) of a slide down and away at the end of the note.
     """
-    bend = arts.get("bend")
-    vib = arts.get("vib")
-    if not (slide or bend or vib):
+    bends = _bend_schedule(arts, beats, dur)
+    vib_at = _vib_start(arts, beats, dur)
+    if not (slide or bends or vib_at is not None or fall):
         return None
     t = np.arange(length) / sr
     cents = np.zeros(length)
@@ -167,19 +194,23 @@ def _pitch_curve(m: StringModel, arts: dict, slide: int, at: dict, dur: float, l
         # Fret by fret: the pitch steps over each fret wire, smoothed by the finger.
         k = abs(slide)
         T = min(SLIDE_S[0] + SLIDE_S[1] * k, SLIDE_MAX * dur)
-        w = min(SLIDE_STEP_S, T / k)
-        crossed = sum(_smoothstep((t - (j + 0.5) * T / k) / w + 0.5) for j in range(k))
-        cents += 100 * slide * (1 - crossed / k)
-    if bend:
-        t0 = at.get("bend", 0.0)
-        cents += 100 * bend * _smoothstep((t - t0) / (BEND_S[0] + BEND_S[1] * bend))
-    if vib:
-        t0 = at["vib"] if "vib" in at else min(VIB_DELAY_S, 0.3 * dur)
+        cents += 100 * slide * (1 - _steps(t, 0.0, T, k) / k)
+    bent = np.zeros(length)
+    level = 0.0
+    for t0, target in bends:
+        move = target - level
+        bent += 100 * move * _smoothstep((t - t0) / (BEND_S[0] + BEND_S[1] * abs(move)))
+        level = target
+    cents += bent
+    if vib_at is not None:
         rate = VIB_HZ * rng.uniform(0.92, 1.08) * (1 + 0.04 * np.sin(2 * np.pi * rng.uniform(0.3, 0.7) * t))
         phase = 2 * np.pi * np.cumsum(rate) / sr
-        depth = m.vib_cents * rng.uniform(0.85, 1.15) * _smoothstep((t - t0) / VIB_RAMP_S)
-        wave = depth * (0.5 - 0.5 * np.cos(phase - phase[min(length - 1, int(t0 * sr))]))
-        cents += -wave if bend else wave  # on a bent string the hand lets it down a little
+        depth = m.vib_cents * rng.uniform(0.85, 1.15) * _smoothstep((t - vib_at) / VIB_RAMP_S)
+        wave = depth * (0.5 - 0.5 * np.cos(phase - phase[min(length - 1, int(vib_at * sr))]))
+        cents += wave * (1 - 2 * np.clip(bent / 100, 0, 1))  # on a bent string the hand lets it down a little
+    if fall:
+        t0, k = fall
+        cents -= 100 * _steps(t, t0, dur - t0, k, ease_in=True)
     return cents
 
 
@@ -232,7 +263,8 @@ def strings_signal(model: StringModel, inst: Instrument, events: list[Event], n:
                 # Fret change on a ringing string: no stroke, only the finger's tap, pluck or slide.
                 if arts.get("sl"):
                     string.seg(start, f0, fret, B, t60, sr)
-                    p_from = prev[0].pitch + prev[0].arts.get("bend", 0)
+                    p_bends = _bend_schedule(prev[0].arts, float(prev[0].beats) or 1.0, prev[0].dur)
+                    p_from = prev[0].pitch + (p_bends[-1][1] if p_bends else 0.0)
                     slide = int(round(p_from - ev.pitch))
                     if slide:
                         T = min(SLIDE_S[0] + SLIDE_S[1] * abs(slide), SLIDE_MAX * ev.dur)
@@ -261,6 +293,15 @@ def strings_signal(model: StringModel, inst: Instrument, events: list[Event], n:
                 string.excs.append((start, _excitation(period, beta, amp_, width, noise, sr, rng)))
 
             end = int(round((ev.time + ev.dur) * sr))
+            fall = None
+            if not harm and fret > 0 and (arts.get("fall") or any(t.get("fall") for t in arts.get("tied", []))):
+                # Slide down and away: the finger eases off, the pitch drops a few frets, friction noise.
+                t0 = ev.dur - min(FALL_S, 0.5 * ev.dur)
+                fall = (t0, min(FALL_FRETS, fret))
+                f_start = start + int(t0 * sr)
+                string.seg(f_start, f0, fret, B, FALL_LOSS, sr, glide=int(DAMP_GLIDE_S * sr))
+                string.excs.append((f_start, _slide_noise(max(2, end - f_start), open_pitch < model.plain_from,
+                                                          vel, sr, rng)))
             nxt = notes[i + 1][0] if i + 1 < len(notes) else None
             legato_next = nxt is not None and nxt.time - (ev.time + ev.dur) < LEGATO_GAP \
                 and any(nxt.arts.get(a) for a in ("h", "p", "sl")) and not nxt.arts.get("harm")
@@ -271,10 +312,8 @@ def strings_signal(model: StringModel, inst: Instrument, events: list[Event], n:
                 stop_at = min(n, end + int(HOLD_S * sr))
                 if nxt is not None:
                     stop_at = min(stop_at, max(0, int(round(nxt.time * sr))))
-                beats = float(ev.beats) or 1.0
-                at = {a: b / beats * ev.dur for a, b in (arts.get("at") or {}).items()}
-                curve = _pitch_curve(model, arts, slide, at, ev.dur, stop_at - start, sr, rng) \
-                    if stop_at > start else None
+                curve = _pitch_curve(model, arts, slide, fall, float(ev.beats) or 1.0, ev.dur,
+                                     stop_at - start, sr, rng) if stop_at > start else None
                 if curve is not None:
                     string.mods.append((start, period * (2 ** (-curve / 1200) - 1)))
         string.run(out, sr, sr / f_open * 1.1)
