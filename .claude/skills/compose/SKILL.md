@@ -40,4 +40,28 @@ authoritative format reference — read it before writing. `examples/demo.beat.y
 8. Keep repeated material in `patterns` and vary it with `replace` (whole bars, optionally
    transposed) and, for drums, `add` (extra hits such as a crash), so later edits stay local.
 
+## Writing the melody
+
+A lead line that is correct on paper can still sound stiff and dated. You cannot hear the result, so
+check the melody against these points (look at it with `beat events --by-bar --parts LEAD`):
+
+- **Think in seconds, not beats.** One beat lasts 60/tempo seconds: at 184 BPM a dotted quarter is
+  0.49 s, a passing note, not a held one. A held note should last about a second or more (3+ beats at
+  180 BPM, 2 beats at 120).
+- **Hold notes where a phrase arrives**, not in the middle of it. A phrase of 2 or 4 bars moves, then
+  lands on a held note, then breathes (a rest of at least half a bar) before the next one. Don't cut the
+  phrase end short and don't fill every beat: leave the gaps where another part can answer.
+- **Make held notes sing.** A held guitar note with a straight pitch sounds like a synthesizer. Give it
+  `!vib` (on a tied note, `A5:2~ A5:2!vib` starts it later), bend into it from below (`G5:4!bend=2`
+  sounds A5), or end it with `!fall`. Don't hold a straight note for two bars.
+- **Use tension on strong beats.** Landing every strong beat on the chord root or fifth sounds bland.
+  Put a 9th, 4th or 7th on the beat and resolve it (e.g. hold A over Em, then fall to G), or land on
+  the 3rd. Don't spell the chord as an arpeggio bar after bar.
+- **Vary the rhythm.** Mix lengths (ties across beats and bar lines, anticipations that start half a
+  beat early, a held bar after a busy one); the same one-bar rhythm repeated for 8 bars, or a phrase
+  repeated one step lower (a sequence), sounds mechanical. An ornament such as a grace hammer-on works
+  a few times per section, not on every note.
+- **Register**: the lead sits above the rhythm guitars' top notes, and the chorus sits higher than the
+  verse.
+
 When editing an existing song, change only what was asked and keep everything else identical.
