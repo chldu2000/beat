@@ -186,3 +186,10 @@ def test_fall_slides_down_and_fades_at_the_end():
     assert abs(cents(f0_at(fallen, 0.2, 0.7, 440), 69)) < 5  # the start of the note is untouched
     tail = lambda y: band_rms(y, 440.0, 0.9, 1.0)
     assert tail(fallen) < 0.1 * tail(held)
+
+
+def test_lead_amp_keeps_the_pick_attack_above_the_sustain():
+    y = amp.amp(strings([ev(76, d=1.0, v=0.6)], 1.0), SR, "lead")
+    rms = lambda t0, t1: np.sqrt(np.mean(y[int(t0 * SR):int(t1 * SR)] ** 2))
+    assert rms(0.0, 0.012) > 1.25 * rms(0.15, 0.3)  # about 3 dB: the supply sags once the note sustains
+    assert rms(0.15, 0.3) > 1.5 * rms(0.7, 0.9)  # and the sustain still decays

@@ -2,6 +2,7 @@
 
 Each triode stage is an asymmetric soft clipper (the grid-conduction side clips harder) with a
 coupling-cap highpass and a Miller-capacitance lowpass, and inverts like a real common-cathode stage.
+The lead tone's supply sags under a sustained note, so the pick attack stands above the sustain.
 Bass: one gentle stage, tone stack, speaker rolloff (no cabinet IR, which would cut the lows).
 """
 
@@ -12,13 +13,15 @@ from .cab import cabinet
 from .eq import biquad
 
 OS = 4
-# tone -> preamp stage gains, pre-distortion highpass (Hz), tone stack (bass, mid, treble dB), power drive
+# tone -> preamp stage gains, pre-distortion highpass (Hz), tone stack (bass, mid, treble dB), power drive,
+# supply sag (how much a sustained note pulls the level down after the attack)
 TONES = {
     "clean": {"stages": [2.0], "tight_hz": 60, "stack": (2.0, 0.0, 2.0), "power": 0.8},
     "crunch": {"stages": [6.0, 4.0], "tight_hz": 110, "stack": (2.0, -1.5, 1.5), "power": 1.2},
-    "lead": {"stages": [8.0, 6.0, 3.0], "tight_hz": 150, "stack": (1.0, 2.5, 1.0), "power": 1.4},
+    "lead": {"stages": [5.0, 4.0, 2.0], "tight_hz": 150, "stack": (1.0, 2.5, 1.0), "power": 1.4, "sag": 0.6},
 }
 BIAS = 0.2
+SAG_S = 0.06  # supply sag: the voltage drops under a sustained load and recovers in about this long
 BASS_DRIVE = 2.0
 
 
@@ -45,6 +48,11 @@ def amp(x: np.ndarray, sr: int, tone: str) -> np.ndarray:
         y = lfilter(b, a, y)
     drive = cfg["power"]
     y = np.tanh(drive * y) / np.tanh(drive)
+    sag = cfg.get("sag", 0.0)
+    if sag:
+        a = np.exp(-1 / (SAG_S * sr))
+        env = np.sqrt(lfilter([1 - a], [1, -a], y * y))
+        y = y / (1 + sag * env)
     return cabinet(y, sr)
 
 

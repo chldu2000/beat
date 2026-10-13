@@ -127,8 +127,8 @@ sections:
           [A3 C4 F4]:1 | [B3 D4 G4]:1 | [A3 C4 E4]:1 | [G#3 B3 E4]:1
       lead:
         notes: >-
-          r:1 | r:1 | r:1 | r:2 E5:8 D5:8 C5:8 A4:8 |
-          r:1 | r:1 | r:1 | r:2 B4:8 G#4:8 E4:4
+          r:1 | r:1 | r:1 | r:2 E5:8 D5:8!p C5:8 A4:8~ |
+          A4:2!vib r:2 | r:1 | r:1 | r:2 B4:8 G#4:8!p E4:4!vib
 
   pre:
     bars: 4

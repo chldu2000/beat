@@ -44,6 +44,7 @@ FALL_FRETS = 7  # ... to slide down this many frets
 FALL_LOSS = (0.3, 0.05)  # the finger eases off while it slides away
 HOLD_S = 0.1  # a bend or vibrato holds this long into the damped release
 HARM_LEVEL = 0.5
+DRIFT_HZ = 3.0  # how fast the finger pressure wanders
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,7 @@ class StringModel:
     noise: float  # stroke noise (pick or finger) relative to the stroke
     tension_cents: float  # a full-velocity stroke starts this much sharp (tension modulation)
     vib_cents: float = 35.0  # vibrato depth; a fretted string can only be pushed sharp, so it only goes up
+    drift_cents: float = 0.0  # a fretting finger's pressure wanders: slow pitch drift (rms) on fretted notes
 
     def sustain(self, f0: float) -> tuple[float, float]:
         t60 = float(np.clip(self.t60_ref * (self.f_ref / f0) ** 0.5, *self.t60_range))
@@ -177,19 +179,27 @@ def _steps(t: np.ndarray, t0: float, T: float, k: int, ease_in: bool = False) ->
     return sum(_smoothstep((t - t0 - a * T) / w + 0.5) for a in at)
 
 
-def _pitch_curve(m: StringModel, arts: dict, slide: int, fall: tuple[float, int] | None, beats: float,
-                 dur: float, length: int, sr: int, rng: np.random.Generator) -> np.ndarray | None:
+def _pitch_curve(m: StringModel, arts: dict, slide: int, fall: tuple[float, int] | None, fretted: bool,
+                 beats: float, dur: float, length: int, sr: int, rng: np.random.Generator) -> np.ndarray | None:
     """Cents against the written pitch over `length` samples from the onset, or None if flat.
 
     `slide`: frets from where a slide starts to the written note (negative = from below).
     `fall`: (seconds into the note, frets) of a slide down and away at the end of the note.
+    `fretted`: the note is stopped by a finger, so its pitch drifts with the finger's pressure.
     """
     bends = _bend_schedule(arts, beats, dur)
     vib_at = _vib_start(arts, beats, dur)
-    if not (slide or bends or vib_at is not None or fall):
+    drift = fretted and m.drift_cents > 0
+    if not (slide or bends or vib_at is not None or fall or drift):
         return None
     t = np.arange(length) / sr
     cents = np.zeros(length)
+    if drift:
+        # Pressing harder pushes the string sharp; lowpassed noise around the pressure the note started with.
+        lp = butter(2, DRIFT_HZ, fs=sr, output="sos")
+        pad = int(sr / DRIFT_HZ)
+        w = sosfilt(lp, rng.normal(0, 1, length + pad))[pad:]
+        cents += m.drift_cents * (w - w[0]) / (np.std(w) + 1e-12)
     if slide:
         # Fret by fret: the pitch steps over each fret wire, smoothed by the finger.
         k = abs(slide)
@@ -312,7 +322,7 @@ def strings_signal(model: StringModel, inst: Instrument, events: list[Event], n:
                 stop_at = min(n, end + int(HOLD_S * sr))
                 if nxt is not None:
                     stop_at = min(stop_at, max(0, int(round(nxt.time * sr))))
-                curve = _pitch_curve(model, arts, slide, fall, float(ev.beats) or 1.0, ev.dur,
+                curve = _pitch_curve(model, arts, slide, fall, fret > 0, float(ev.beats) or 1.0, ev.dur,
                                      stop_at - start, sr, rng) if stop_at > start else None
                 if curve is not None:
                     string.mods.append((start, period * (2 ** (-curve / 1200) - 1)))
