@@ -494,8 +494,9 @@ beat validate SONG [--json]                  校验；有错误时退出码为 1
 beat events   SONG [--json] [--parts a,b] [--sections x,y] [--bars 5-8] [--by-bar]
                                              输出编译后的音符；--by-bar 是逐小节的紧凑视图
 beat midi     SONG -o out.mid                导出 MIDI
-beat render   SONG -o out.wav [--parts gt1,bs] [--sections verse,chorus] [--mix off]
-                                             渲染并打印混音报告（第 10 节）
+beat render   SONG -o out.wav [--parts gt1,bs] [--sections verse,chorus] [--mix off] [-q]
+                                             渲染并打印混音报告（第 10 节）；渲染进度和每步耗时
+                                             打印到 stderr，-q 关闭
 beat voicing  CHORD [full|power] [--for guitar|bass|organ|piano] [--tuning D2,A2,...] [--low C3] [--max 6] [--json]
                                              列出和弦的可演奏排列，复制到 notes 里用
 beat analyze  SONG [--json]                  （v0.2）乐理和音频分析报告

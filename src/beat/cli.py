@@ -3,6 +3,7 @@
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 from .compile import Compiled, compile_song
@@ -105,10 +106,37 @@ def cmd_midi(args) -> int:
     return 0
 
 
+class _Progress:
+    """Prints each render stage to stderr as it starts, and its time when the next one starts."""
+
+    def __init__(self, quiet: bool):
+        self.quiet = quiet
+        self.start = self.t = time.monotonic()
+        self.open = False
+
+    def __call__(self, what: str) -> None:
+        self.finish()
+        if not self.quiet:
+            print(f"  {what} ...", end="", file=sys.stderr, flush=True)
+            self.open = True
+
+    def finish(self) -> None:
+        now = time.monotonic()
+        if self.open:
+            print(f" {now - self.t:.1f}s", file=sys.stderr, flush=True)
+            self.open = False
+        self.t = now
+
+    def total(self) -> float:
+        self.finish()
+        return time.monotonic() - self.start
+
+
 def cmd_render(args) -> int:
     from .diagnostics import Diagnostic
     from .render import SR, mixdown, write_wav
 
+    progress = _Progress(args.quiet)
     diags, song, compiled = _load(args.song, args.sections)
     parts = [p.strip() for p in args.parts.split(",")] if args.parts else None
     if song and parts:
@@ -118,10 +146,14 @@ def cmd_render(args) -> int:
     if diags.has_errors or compiled is None:
         return _report(diags, compiled, False)
     _print_diags(diags)
-    audio, report = mixdown(compiled, parts, mix=args.mix == "on")
+    if not args.quiet:
+        print(f"rendering {args.song}: {compiled.total_bars} bars, {compiled.duration_sec:.1f}s",
+              file=sys.stderr, flush=True)
+    audio, report = mixdown(compiled, parts, mix=args.mix == "on", progress=progress)
+    progress("write")
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     write_wav(args.output, audio)
-    print(f"wrote {args.output} ({len(audio) / SR:.1f}s)")
+    print(f"wrote {args.output} ({len(audio) / SR:.1f}s of audio in {progress.total():.1f}s)")
     if report:
         print("\n".join(report.lines()))
         for where, msg in report.warnings:
@@ -196,6 +228,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--sections", help="comma-separated section ids")
     p.add_argument("--mix", choices=["on", "off"], default="on",
                    help="off: only gain_db and pan, peak-normalized (the v0.1 mix, for comparison)")
+    p.add_argument("-q", "--quiet", action="store_true", help="don't print progress to stderr")
     p.set_defaults(func=cmd_render)
 
     p = sub.add_parser("voicing", help="list playable voicings of a chord to paste into notes")

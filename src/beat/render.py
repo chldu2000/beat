@@ -7,6 +7,7 @@ pan, peak normalization), kept for A/B listening.
 """
 
 import wave
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -14,7 +15,7 @@ import numpy as np
 
 from . import mix as mixing
 from .compile import Compiled
-from .synth.engine import render_part
+from .synth.engine import engine_name, render_part
 
 SR = 44100
 TAIL_SEC = 2.5
@@ -52,9 +53,11 @@ def render(compiled: Compiled, parts: list[str] | None = None, sr: int = SR, mix
     return mixdown(compiled, parts, sr, mix)[0]
 
 
-def mixdown(compiled: Compiled, parts: list[str] | None = None, sr: int = SR,
-            mix: bool = True) -> tuple[np.ndarray, MixReport | None]:
+def mixdown(compiled: Compiled, parts: list[str] | None = None, sr: int = SR, mix: bool = True,
+            progress: Callable[[str], None] | None = None) -> tuple[np.ndarray, MixReport | None]:
+    """`progress` is called with a short description as each stage (a part, the room, the master) starts."""
     song = compiled.song
+    step = progress or (lambda _: None)
     settings: mixing.Mix = song.mix
     space = mixing.SPACES[settings.space] if mix else None
     seed = song.performance.get("seed", 0) if isinstance(song.performance, dict) else 0
@@ -67,12 +70,13 @@ def mixdown(compiled: Compiled, parts: list[str] | None = None, sr: int = SR,
     lufs: dict[str, float] = {}
     comp_db: dict[str, float] = {}
 
+    todo = [pid for pid in song.instruments if (not parts or pid in parts)
+            and any(e.part == pid for e in compiled.events)]
     for i, (pid, inst) in enumerate(song.instruments.items()):
-        if parts and pid not in parts:
+        if pid not in todo:
             continue
         events = [e for e in compiled.events if e.part == pid]
-        if not events:
-            continue
+        step(f"[{todo.index(pid) + 1}/{len(todo)}] {pid} ({engine_name(inst)}, {len(events)} notes)")
         rng = np.random.default_rng([int(seed), i])
         audio = render_part(inst, events, n, sr, rng, [c for c in compiled.controls if c.part == pid])
         strip = settings.parts[pid]
@@ -94,7 +98,9 @@ def mixdown(compiled: Compiled, parts: list[str] | None = None, sr: int = SR,
         peak = np.max(np.abs(bus))
         return (bus * 10 ** (-1 / 20) / peak if peak > 0 else bus), None
     if space:
+        step("room")
         bus += _room(sends, space, sr)
+    step("master")
     return _master(bus, settings, sr, compiled, levels, lufs, comp_db)
 
 
