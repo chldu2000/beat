@@ -1,0 +1,180 @@
+beat: 0.1
+
+meta:
+  title: Last Bus Home
+  tempo: 180
+  time: 4/4
+  key: D major
+  style: melodic punk
+
+instruments:
+  dr:  { type: drums }
+  bs:  { type: bass }
+  gt1: { type: guitar, tone: crunch }
+  gt2: { type: guitar, tone: lead }
+
+patterns:
+  beat_v:
+    type: drums
+    bars: 1
+    hits: |
+      hh: every 0.5
+      sd: 2!acc 4!acc
+      bd: 1 1.5 3 3.5
+  beat_c:
+    type: drums
+    bars: 1
+    hits: |
+      ho: 1 2 3 4
+      hh: 1.5 2.5 3.5 4.5
+      sd: 2!acc 4!acc
+      bd: 1 1.5 3 3.5
+  fill:
+    type: drums
+    bars: 1
+    hits: |
+      sd: 1 1.5 2 2.5 3 3.25
+      t1: 3.5 3.75
+      t2: 4 4.25
+      t3: 4.5 4.75!acc
+      bd: 1 3
+  dpm: { type: pitched, bars: 1, notes: "([D3 A3]:8!pm)*8" }
+  gpm: { type: pitched, bars: 1, notes: "([G2 D3]:8!pm)*8" }
+  apm: { type: pitched, bars: 1, notes: "([A2 E3]:8!pm)*8" }
+  bpm: { type: pitched, bars: 1, notes: "([B2 F#3]:8!pm)*8" }
+  dop: { type: pitched, bars: 1, notes: "[D3 A3 D4]:8 ([D3 A3 D4]:8)*7" }
+  gop: { type: pitched, bars: 1, notes: "([G2 D3 G3]:8)*8" }
+  aop: { type: pitched, bars: 1, notes: "([A2 E3 A3]:8)*8" }
+  bop: { type: pitched, bars: 1, notes: "([B2 F#3 B3]:8)*8" }
+  bd8: { type: pitched, bars: 1, notes: "(D2:8)*8" }
+  bg8: { type: pitched, bars: 1, notes: "(G1:8)*8" }
+  ba8: { type: pitched, bars: 1, notes: "(A1:8)*8" }
+  bb8: { type: pitched, bars: 1, notes: "(B1:8)*8" }
+
+sections:
+  intro:
+    bars: 4
+    dynamic: mf
+    chords: "D | D | G | A"
+    parts:
+      dr:
+        use: beat_v
+        replace:
+          1-2: { hits: "hh: every 0.5 |  every 0.5\nbd: 1 3 | 1 3\nsd: 2 4 | 2 4" }
+          4: { use: fill }
+      bs:
+        notes: "(D2:8)*8 | (D2:8)*8 | (G1:8)*8 | (A1:8)*8"
+      gt1:
+        notes: "([D3 A3]:8!pm)*8 | ([D3 A3]:8!pm)*8 | ([G2 D3]:8!pm)*8 | ([A2 E3]:8!pm)*8"
+      gt2:
+        notes: "r:1 | r:1 | G4:4 B4:4 D5:2 | C#5:2 E5:2"
+
+  verse:
+    bars: 8
+    dynamic: mf
+    chords: "D | D | G | A | D | Bm | G | A"
+    parts:
+      dr:
+        use: beat_v
+        replace: { 8: { use: fill } }
+        add: { 1: { hits: "cr: 1!acc" } }
+      bs:
+        notes: "(D2:8)*8 | (D2:8)*8 | (G1:8)*8 | (A1:8)*8 | (D2:8)*8 | (B1:8)*8 | (G1:8)*8 | (A1:8)*8"
+      gt1:
+        notes: "([D3 A3]:8!pm)*8 | ([D3 A3]:8!pm)*8 | ([G2 D3]:8!pm)*8 | ([A2 E3]:8!pm)*8 | ([D3 A3]:8!pm)*8 | ([B2 F#3]:8!pm)*8 | ([G2 D3]:8!pm)*8 | ([A2 E3]:8!pm)*8"
+      gt2:
+        notes: >-
+          F#4:4 F#4:8 G4:8 A4:4 r:4 |
+          A4:8 G4:8 F#4:8 E4:8 D4:2 |
+          G4:4 B4:4 A4:8 G4:8 B4:4 |
+          A4:2 r:4 E4:8 F#4:8 |
+          F#4:4 F#4:8 G4:8 A4:4 D5:4 |
+          D5:4. B4:8 A4:4 F#4:4 |
+          G4:4 A4:4 B4:4 D5:4 |
+          C#5:2~ C#5:4!vib r:4
+
+  chorus:
+    bars: 8
+    dynamic: f
+    chords: "D | A | Bm | G | D | A | G | A"
+    parts:
+      dr:
+        use: beat_c
+        replace: { 8: { use: fill } }
+        add: { 1: { hits: "cr: 1!acc" } }
+      bs:
+        notes: "(D2:8)*8 | (A1:8)*8 | (B1:8)*8 | (G1:8)*8 | (D2:8)*8 | (A1:8)*8 | (G1:8)*8 | (A1:8)*8"
+      gt1:
+        notes: "([D3 A3 D4]:8)*8 | ([A2 E3 A3]:8)*8 | ([B2 F#3 B3]:8)*8 | ([G2 D3 G3]:8)*8 | ([D3 A3 D4]:8)*8 | ([A2 E3 A3]:8)*8 | ([G2 D3 G3]:8)*8 | ([A2 E3 A3]:8)*8"
+      gt2:
+        notes: >-
+          A4:4 A4:8 B4:8 D5:4 D5:4 |
+          C#5:4 B4:4 A4:2 |
+          B4:4 B4:8 D5:8 F#5:4 E5:4 |
+          D5:2 B4:4 G4:4 |
+          A4:4 A4:8 B4:8 D5:4 F#5:4 |
+          E5:4. D5:8 C#5:4 E5:4 |
+          D5:4 B4:4 G4:4 B4:4 |
+          A4:2~ A4:4!vib r:4
+
+  bridge:
+    bars: 4
+    dynamic: mp
+    chords: "Bm | G | A | A"
+    parts:
+      dr:
+        hits: |
+          hh: every 0.5 | every 0.5 | every 0.5 | 1 2 3 4
+          sd: 2 4 | 2 4 | 2 4 | 1 1.5 2 2.5 3 3.25
+          bd: 1 3 | 1 3 | 1 3 | 1 3
+          t1: | | | 3.5 3.75
+          t2: | | | 4 4.25
+          t3: | | | 4.5 4.75!acc
+      bs:
+        notes: "(B1:8)*8 | (G1:8)*8 | (A1:8)*8 | (A1:8)*8"
+      gt1:
+        notes: "([B2 F#3]:8!pm)*8 | ([G2 D3]:8!pm)*8 | ([A2 E3]:8!pm)*8 | ([A2 E3]:8!pm)*8"
+      gt2:
+        notes: >-
+          D5:4 D5:8 B4:8 D5:4 F#5:4 |
+          D5:4 B4:4 G4:2 |
+          E5:4 E5:8 E5:8 C#5:4 E5:4 |
+          E5:2~ E5:4!vib r:4
+
+  chorus_end:
+    bars: 8
+    dynamic: ff
+    chords: "D | A | Bm | G | D | A | G | D"
+    parts:
+      dr:
+        use: beat_c
+        replace:
+          7: { use: fill }
+          8: { hits: "cr: 1!acc\nbd: 1!acc" }
+        add: { 1: { hits: "cr: 1!acc" } }
+      bs:
+        notes: "(D2:8)*8 | (A1:8)*8 | (B1:8)*8 | (G1:8)*8 | (D2:8)*8 | (A1:8)*8 | (G1:8)*8 | D2:1"
+      gt1:
+        notes: "([D3 A3 D4]:8)*8 | ([A2 E3 A3]:8)*8 | ([B2 F#3 B3]:8)*8 | ([G2 D3 G3]:8)*8 | ([D3 A3 D4]:8)*8 | ([A2 E3 A3]:8)*8 | ([G2 D3 G3]:8)*8 | [D3 A3 D4]:1"
+      gt2:
+        notes: >-
+          A4:4 A4:8 B4:8 D5:4 D5:4 |
+          C#5:4 B4:4 A4:2 |
+          B4:4 B4:8 D5:8 F#5:4 E5:4 |
+          D5:2 B4:4 G4:4 |
+          A4:4 A4:8 B4:8 D5:4 F#5:4 |
+          E5:4. D5:8 C#5:4 E5:4 |
+          D5:4 B4:4 G4:4 B4:4 |
+          D5:1!vib
+
+form: [intro, verse, chorus, verse, chorus, bridge, chorus_end]
+
+performance:
+  seed: 11
+  humanize: { timing_ms: 4, velocity: 0.04 }
+
+mix:
+  space: room
+  bs:  { gain_db: -1 }
+  gt1: { gain_db: -2, pan: -0.5 }
+  gt2: { gain_db: -2, pan: 0.3, reverb: more }

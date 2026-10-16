@@ -1,0 +1,16 @@
+id: t6-compose-punk
+kind: compose
+prompt: |
+  Compose an original melodic punk song in D major in the spirit of early Green Day or the Ramones,
+  and write it to song.beat.yaml. There is no singer: gt2 plays the vocal melody.
+
+  - Tempo between 170 and 190 BPM, 4/4.
+  - Parts: dr (drums), bs (bass), gt1 (rhythm guitar, crunch), gt2 (lead guitar, lead tone).
+  - 32 to 48 bars in total, at least 3 different sections, and the chorus must come back at least once.
+  - gt2 carries a singable melody in the verses and choruses.
+checks:
+  bars: [32, 48]
+  tempo: [170, 190]
+  parts_play: [dr, bs, gt1, gt2]
+  min_sections: 3
+  repeated_section: true

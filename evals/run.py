@@ -38,7 +38,9 @@ FOOTER = f"""
 
 Work in the current directory and write the song to {SONG}. Use `beat validate {SONG}` and
 `beat events {SONG}` as often as you like (`beat` is on PATH; run it exactly like that); do not
-render audio.
+render audio. Bash only runs `beat` and read-only commands, one command per call (no heredocs,
+redirects or loops): write files with the Write and Edit tools. A denied command does not
+mean `beat` is unavailable.
 
 When you are done, write NOTES.md with three short lists:
 1. What was hard or confusing about the Beat DSL or its tools.
@@ -54,8 +56,8 @@ def load_task(task_id: str) -> dict:
     return yaml.safe_load(matches[0].read_text())
 
 
-def guide_text() -> str:
-    text = SKILL.read_text()
+def guide_text(skill: Path = SKILL) -> str:
+    text = skill.read_text()
     if text.startswith("---"):
         text = text.split("---", 2)[2]
     return text.replace("(in this repo: `docs/SPEC.md`) ", "").strip()
@@ -85,7 +87,7 @@ def setup_workspace(task: dict) -> Path:
     return ws
 
 
-def run_one(task: dict, run_dir: Path, model: str, budget: float, timeout: int) -> dict:
+def run_one(task: dict, run_dir: Path, model: str, budget: float, timeout: int, guide: str) -> dict:
     ws = setup_workspace(task)
     run_dir.mkdir(parents=True, exist_ok=True)
     prompt = build_prompt(task)
@@ -96,7 +98,7 @@ def run_one(task: dict, run_dir: Path, model: str, budget: float, timeout: int) 
     cmd = [
         "claude", "-p", prompt, "--model", model, "--safe-mode",
         # --restricted confines file tools to the workspace, so references in this repo stay unreadable.
-        "--restricted", "--append-system-prompt", guide_text(),
+        "--restricted", "--append-system-prompt", guide,
         "--tools", "Bash,Read,Write,Edit,Glob,Grep",
         # Some agents call the shim by path; both spellings run the same logged CLI.
         "--allowedTools", "Bash(beat *)", "Bash(./.bin/beat *)", "Bash(.bin/beat *)", "Write", "Edit",
@@ -140,6 +142,8 @@ def main() -> int:
     ap.add_argument("--budget", type=float, default=3.0, help="max USD per run")
     ap.add_argument("--timeout", type=int, default=1800, help="seconds per run")
     ap.add_argument("--label", default="", help="suffix for the results directory")
+    ap.add_argument("--skill", type=Path, default=SKILL,
+                    help="compose guide to use instead of the live skill (e.g. a variant in evals/skills/)")
     ap.add_argument("--grade-only", type=Path, help="re-grade an existing results directory")
     ap.add_argument("--resume", type=Path, help="run missing or infra-failed runs of a results directory")
     args = ap.parse_args()
@@ -163,6 +167,10 @@ def main() -> int:
         out = REPO / "evals" / "results" / f"{stamp}-{args.model}{'-' + args.label if args.label else ''}"
         out.mkdir(parents=True)
         (out / "config.json").write_text(json.dumps(vars(args), default=str, indent=2))
+    # A resumed run keeps the guide it started with, even if the skill has changed since.
+    saved = out / "guide.md"
+    guide = saved.read_text().strip() if args.resume and saved.exists() else guide_text(args.skill)
+    saved.write_text(guide + "\n")
 
     jobs = [(t, out / t["id"] / f"run-{i + 1}") for t in tasks for i in range(args.runs)]
     jobs = [(t, d) for t, d in jobs if _needs_run(d)]
@@ -172,7 +180,7 @@ def main() -> int:
     def job(task: dict, run_dir: Path) -> dict | None:
         if stop.is_set():
             return None
-        m = run_one(task, run_dir, args.model, args.budget, args.timeout)
+        m = run_one(task, run_dir, args.model, args.budget, args.timeout, guide)
         if m.get("infra_failure"):
             stop.set()  # a usage limit will fail every later run too
         return m

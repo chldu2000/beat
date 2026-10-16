@@ -28,7 +28,9 @@ authoritative format reference — read it before writing. `examples/demo.beat.y
 3. **Parts**, one at a time: drums → bass → rhythm guitar → keys / lead. Validate after each part.
 4. **Fix every error.** Read warnings too and fix the ones that are real mistakes.
 5. **Check intent** with `beat events --by-bar --bars …` on bars you are unsure about (rhythms, ties,
-   repeats, drum grids).
+   repeats, drum grids). Read the lead with `--parts LEAD` and revise it if it mostly arpeggiates the
+   chord of each bar, repeats one bar's rhythm or one ornament without anything else changing, or sits
+   under the rhythm guitars while they play full chords — unless the song means it to.
 6. **Organ**: choose its sound once with `model: { registration: ... }` (SPEC section 3), shape it per
    section with `dynamic` (it has no touch sensitivity; `!acc` does nothing) and `leslie: fast` where
    the section should lift (usually choruses and solos).
@@ -42,26 +44,20 @@ authoritative format reference — read it before writing. `examples/demo.beat.y
 
 ## Writing the melody
 
-A lead line that is correct on paper can still sound stiff and dated. You cannot hear the result, so
-check the melody against these points (look at it with `beat events --by-bar --parts LEAD`):
+You cannot hear the result, so write the lead with these in mind. The style of the song comes first;
+each point says why, so you can tell when it does not apply.
 
-- **Think in seconds, not beats.** One beat lasts 60/tempo seconds: at 184 BPM a dotted quarter is
-  0.49 s, a passing note, not a held one. A held note should last about a second or more (3+ beats at
-  180 BPM, 2 beats at 120).
-- **Hold notes where a phrase arrives**, not in the middle of it. A phrase of 2 or 4 bars moves, then
-  lands on a held note, then breathes (a rest of at least half a bar) before the next one. Don't cut the
-  phrase end short and don't fill every beat: leave the gaps where another part can answer.
-- **Make held notes sing.** A held guitar note with a straight pitch sounds like a synthesizer. Give it
+- **Think in seconds.** One beat lasts 60/tempo seconds, and the ear hears a note as held from about a
+  second (3 beats at 180 BPM, 2 at 120); at 184 BPM a dotted quarter (0.49 s) is a passing note.
+- **Shape phrases like a singer would.** A phrase moves toward a goal, lands, and breathes before the
+  next one; the gaps are where other parts answer.
+- **Give held notes a life.** On this guitar a held note with a steady pitch sounds synthetic. Add
   `!vib` (on a tied note, `A5:2~ A5:2!vib` starts it later), bend into it from below (`G5:4!bend=2`
-  sounds A5), or end it with `!fall`. Don't hold a straight note for two bars.
-- **Use tension on strong beats.** Landing every strong beat on the chord root or fifth sounds bland.
-  Put a 9th, 4th or 7th on the beat and resolve it (e.g. hold A over Em, then fall to G), or land on
-  the 3rd. Don't spell the chord as an arpeggio bar after bar.
-- **Vary the rhythm.** Mix lengths (ties across beats and bar lines, anticipations that start half a
-  beat early, a held bar after a busy one); the same one-bar rhythm repeated for 8 bars, or a phrase
-  repeated one step lower (a sequence), sounds mechanical. An ornament such as a grace hammer-on works
-  a few times per section, not on every note.
-- **Register**: the lead sits above the rhythm guitars' top notes, and the chorus sits higher than the
-  verse.
+  sounds A5), or end it with `!fall`.
+- **Let the melody have its own line.** Choose notes for where the melody is going, not only from the
+  chord of the moment; use ornaments where a note needs emphasis.
+- **Make the lead heard.** It cuts through above the rhythm guitars' top notes, or in their register
+  when they thin out or drop away. Give the chorus a lift over the verse: register, rhythm density,
+  arrangement or dynamics.
 
 When editing an existing song, change only what was asked and keep everything else identical.

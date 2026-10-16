@@ -46,3 +46,25 @@ uv run python -m evals.describe evals/refs/riff.beat.yaml        # 预览转写�
 每次运行的结果保存在 `results/<时间>-<模型>-<标签>/`：`REPORT.md`，以及每个 run 的
 `prompt.md`、`song.beat.yaml`、`NOTES.md`、`metrics.json`。完整对话（`transcript.jsonl`）和
 `beatlog/` 也保存在那里，但不提交到 git。
+
+## 音乐性（`music.py`）
+
+```sh
+uv run python -m evals.music --group 旧='evals/results/<旧>/t3*/run-*/song.beat.yaml' \
+                             --group 新='evals/results/<新>/t3*/run-*/song.beat.yaml'
+```
+
+不给“好不好听”打分，只做两件事：
+- **趋同**：每首歌的描述（调、速度、曲式、相对主音的和声进行、鼓型、主旋律的音程 / 时长 / 强拍音级 / 演奏法 / 休止），
+  以及组内两两相似度。改作曲指导前后各跑一组，相似度明显上升而听感没变好，就说明指导在把作品压成模板。
+- **底线检查**：只报公认的缺陷，每条带位置：低音区密集音程发浑、主旋律长音和贝斯成小九度、主旋律大半在节奏声部最高音之下、
+  某个声部从头到尾只有同一个小节。
+
+好不好听最终以盲听 A/B 为准。
+
+作曲指导的对照版本放在 `skills/`，用 `--skill` 选用（默认是当前的 `.claude/skills/compose/SKILL.md`）；
+每个结果目录里的 `guide.md` 是这次实际用的指导，`--resume` 会沿用它：
+
+```sh
+uv run python -m evals.run --tasks t3 --runs 3 --jobs 1 --skill evals/skills/melody-rules.md --label melody-rules
+```

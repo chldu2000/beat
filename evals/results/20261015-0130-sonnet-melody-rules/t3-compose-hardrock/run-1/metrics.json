@@ -1,0 +1,50 @@
+{
+  "task": "t3-compose-hardrock",
+  "run": "run-1",
+  "beat_calls": 2,
+  "validate_calls": 1,
+  "events_calls": 1,
+  "first_check_errors": 0,
+  "checks_to_green": 1,
+  "error_trace": [
+    0,
+    0
+  ],
+  "error_categories_all": {},
+  "error_categories_first": {},
+  "error_examples": [],
+  "final_exists": true,
+  "final_valid": true,
+  "final_errors": [],
+  "final_warnings": 0,
+  "file_chars": 4127,
+  "bars": 38,
+  "chars_per_bar": 109,
+  "checks": {
+    "bars in [24, 40]": true,
+    "tempo in [120, 135]": true,
+    "dr plays": true,
+    "bs plays": true,
+    "gt1 plays": true,
+    "gt2 plays": true,
+    ">= 3 distinct sections": true,
+    "a section repeats": true
+  },
+  "checks_passed": 8,
+  "checks_total": 8,
+  "tool_calls": {
+    "Read": 2,
+    "Write": 2,
+    "Edit": 1,
+    "Bash": 2
+  },
+  "other_bash": [],
+  "denied": [],
+  "cost_usd": 0.20400469999999998,
+  "turns": 8,
+  "duration_sec": 51,
+  "result_error": false,
+  "subtype": "success",
+  "output_tokens": 6752,
+  "notes": "# Notes\n\n## 1. What was hard or confusing\n- SPEC.md is written in Chinese while the task and tool output are in English.\n- It is unclear whether `extends` re-applies a drum `replace`/`add` from the parent when the child overrides `dr`. I restated them in the child to be safe.\n- Empty drum lanes with `|` separators (e.g. `t1: | | |`) are easy to get wrong, so I avoided them.\n- I could not hear the result, so melody and groove choices rest on the spec alone.\n\n## 2. Workarounds\n- A `chorus_last` section that `extends` `chorus` adds the lead (gt2), so the final chorus differs without duplicating the rhythm parts.\n- The fill into each chorus is a `replace` on the last verse bar, because a fill belongs to the preceding section.\n- The intro's drum build-up is written directly as `hits` with `|`-separated bars instead of a pattern.\n\n## 3. Wishes\n- Open-string bass chug in `A1` (e.g. `(A1:8)*8`) shown as a one-bar repeat shorthand across sections.\n- A `beat events --by-bar` option to show only the drum lanes or only bars with a given articulation.\n- A validator hint when a section's final bar has no fill or crash before a section change.\n- Per-section mix automation, so the lead could be louder in the last chorus.\n"
+}

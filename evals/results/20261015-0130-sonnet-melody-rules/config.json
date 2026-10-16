@@ -1,0 +1,12 @@
+{
+  "tasks": "t3,t6",
+  "runs": 3,
+  "model": "sonnet",
+  "jobs": 1,
+  "budget": 3.0,
+  "timeout": 1800,
+  "label": "melody-rules",
+  "skill": "evals/skills/melody-rules.md",
+  "grade_only": null,
+  "resume": null
+}
