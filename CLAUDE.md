@@ -18,7 +18,7 @@ uv run pytest
 ## Code layout (`src/beat/`)
 
 `notation.py` (text notations) → `song.py` (YAML → resolved sections) → `checks.py` (playability)
-→ `compile.py` (timeline, ties, performance layer → events) → `render.py` + `synth/` (audio), `midi.py`.
+→ `compile.py` (timeline, ties, performance layer → events; `arrangement.py` checks across parts) → `render.py` + `synth/` (audio), `midi.py`.
 `mix.py` resolves the `mix:` settings (presets, per-instrument defaults; no numba); `render.py` runs each
 part's channel strip (`synth/eq.py`, `synth/dynamics.py`), the shared room (`room.py`) and the master
 (glue compressor, BS.1770 loudness, true-peak limiter), and returns a mix report.

@@ -5,6 +5,7 @@ from fractions import Fraction
 
 import numpy as np
 
+from .arrangement import check_arrangement
 from .diagnostics import Diagnostics, did_you_mean, loc
 from .notation import fmt_beats
 from .pitch import parse_pitch, pitch_name
@@ -140,6 +141,7 @@ def compile_song(song: Song, diags: Diagnostics, form: list[str] | None = None) 
     compiled = Compiled(song, instances, events, total_beats, duration, total_bars, list(form), controls)
     _apply_performance(compiled, diags)
     compiled.events.sort(key=lambda e: (e.time, e.part, e.pitch))
+    check_arrangement(compiled, diags)
     return compiled
 
 

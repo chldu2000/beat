@@ -6,9 +6,8 @@
 
 Nothing here is a score of how good a song is. The descriptors and similarities measure whether
 songs written under the same guidance converge on one template (compare a group's similarity
-before and after a guidance change); the floor checks report only clear defects (muddy low
-voicings, minor-9th clashes with the bass, a lead under the rhythm guitars, a part that never
-changes), each with a location.
+before and after a guidance change); the floor checks are the arrangement warnings of `beat validate`
+(beat.arrangement): clear defects only, each with a location.
 """
 
 import argparse
@@ -22,15 +21,14 @@ from itertools import combinations
 from pathlib import Path
 from statistics import mean
 
+from beat.arrangement import check_arrangement, lead_part
 from beat.compile import Compiled, Event
+from beat.diagnostics import Diagnostics
 from beat.pitch import _pitch_class, chord_tones, pitch_name
-from beat.views import fmt_pos
 
 from .score import load, score_events
 
 STRING_TECHNIQUES = ("vib", "bend", "sl", "fall", "h", "p", "harm", "release")
-# The lowest note at which an interval still sounds clear (common orchestration rule of thumb).
-LOW_INTERVAL_LIMIT = {1: 52, 2: 51, 3: 48, 4: 46}  # m2 E3, M2 Eb3, m3 C3, M3 Bb2
 DEGREES = {0: "R", 3: "3", 4: "3", 7: "5", 10: "7", 11: "7", 2: "9", 1: "b9", 5: "4", 6: "#4", 9: "6", 8: "b6"}
 
 
@@ -60,29 +58,6 @@ def _chord_of(ev: Event, chords: dict[int, list]):
     if span is None or span.pcs is None:
         return None
     return chord_tones(span.symbol)
-
-
-def _lead_part(compiled: Compiled, events: list[Event]) -> str | None:
-    insts = compiled.song.instruments
-    leads = [p for p, i in insts.items() if i.tone == "lead"]
-    if leads:
-        return leads[0]
-    best, best_pitch = None, -1.0
-    for pid, inst in insts.items():
-        if inst.type in ("drums", "bass"):
-            continue
-        evs = [e for e in events if e.part == pid]
-        onsets = Counter(e.beat for e in evs)
-        if not evs or len(evs) / len(onsets) > 1.2:  # mostly chords: an accompaniment part
-            continue
-        p = mean(e.pitch for e in evs)
-        if p > best_pitch:
-            best, best_pitch = pid, p
-    return best
-
-
-def _where(compiled: Compiled, ev: Event) -> str:
-    return f"{ev.src['section']} > {ev.part} > bar {ev.src['bar']}, beat {fmt_pos(ev.pos_in_bar + 1)}"
 
 
 def _sec(compiled: Compiled, ev: Event) -> float:
@@ -138,7 +113,7 @@ def describe(path: Path) -> dict | None:
         if drum_patterns else None,
     }
 
-    lead = _lead_part(compiled, events)
+    lead = lead_part(compiled, events)
     d["lead"] = lead
     if lead:
         d.update(_describe_lead(compiled, [e for e in events if e.part == lead], chords, ref, bar_beats))
@@ -258,76 +233,13 @@ def similarity(songs: list[dict]) -> dict[str, float | None]:
 # --- floor checks ----------------------------------------------------------------
 
 def floors(path: Path) -> list[str]:
+    """The arrangement warnings `beat validate` gives (see beat.arrangement)."""
     diags, song, compiled = load(path)
     if compiled is None or diags.errors:
         return []
-    events = score_events(song)
-    insts = song.instruments
-    found: list[str] = []
-
-    # Muddy low voicings: a close interval inside one part's chord below its low-interval limit.
-    for pid, inst in insts.items():
-        if not inst.pitched:
-            continue
-        groups = defaultdict(list)
-        for e in events:
-            if e.part == pid:
-                groups[e.beat].append(e)
-        reported = set()
-        for group in groups.values():
-            ps = sorted({e.pitch for e in group})
-            for lo, hi in zip(ps, ps[1:]):
-                limit = LOW_INTERVAL_LIMIT.get(hi - lo)
-                key = (group[0].src["section"], lo, hi)
-                if limit and lo < limit and key not in reported:
-                    reported.add(key)
-                    found.append(f"{_where(compiled, group[0])}: {pitch_name(lo)} and {pitch_name(hi)} "
-                                 f"together sound muddy that low; voice the chord higher or drop a note")
-
-    # A held melody note a minor 9th above the bass note sounding under it.
-    lead = _lead_part(compiled, events)
-    bass = [e for e in events if insts[e.part].type == "bass"]
-    if lead:
-        reported = set()
-        for e in (e for e in events if e.part == lead):
-            for b in bass:
-                start, end = max(e.beat, b.beat), min(e.beat + e.beats, b.beat + b.beats)
-                if end <= start or (e.pitch - b.pitch) % 12 != 1:
-                    continue
-                overlap = compiled.beat_to_sec(float(end)) - compiled.beat_to_sec(float(start))
-                key = (e.src["section"], e.src["bar"], e.pitch)
-                if overlap >= 0.4 and key not in reported:
-                    reported.add(key)
-                    found.append(f"{_where(compiled, e)}: {pitch_name(e.pitch)} clashes with the bass "
-                                 f"{pitch_name(b.pitch)} a minor 9th below for {overlap:.1f} s; "
-                                 f"change one of the two notes or shorten the overlap")
-
-    # A lead mostly under the rhythm guitars' top notes in a section.
-    if lead:
-        rhythm = [e for e in events if e.part != lead and insts[e.part].type in ("guitar", "organ", "piano")]
-        by_section = defaultdict(lambda: [0, 0])
-        for e in (e for e in events if e.part == lead):
-            tops = [r.pitch for r in rhythm if r.beat <= e.beat < r.beat + r.beats]
-            if tops:
-                counts = by_section[(e.src["section"], e.src["instance"])]
-                counts[0] += 1
-                counts[1] += e.pitch < max(tops)
-        for (sec, inst_no), (n, under) in by_section.items():
-            if n >= 8 and under / n > 0.5:
-                found.append(f"{sec} (#{inst_no}) > {lead}: {under} of {n} lead notes sit under the top note "
-                             f"of the rhythm parts; move the lead up an octave or voice the rhythm lower")
-
-    # A part that plays the very same bar everywhere.
-    for pid in insts:
-        bars = defaultdict(list)
-        for e in events:
-            if e.part == pid:
-                bars[e.src["global_bar"]].append((str(e.pos_in_bar), e.lane or e.pitch, str(e.beats)))
-        contents = {tuple(sorted(v)) for v in bars.values()}
-        if len(bars) >= 16 and len(contents) == 1:
-            found.append(f"{pid}: plays the same bar in all {len(bars)} bars it plays; "
-                         f"vary it between sections (fills, accents, a different groove in the chorus)")
-    return found
+    found = Diagnostics()
+    check_arrangement(compiled, found)
+    return [str(d) for d in found.warnings]
 
 
 # --- report ----------------------------------------------------------------------
