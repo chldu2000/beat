@@ -1,0 +1,454 @@
+# 断电之后 — V4: connected four-bar chorus phrases with clear beat articulation. 68 bars, 140 BPM.
+beat: 0.1
+meta:
+  title: After the Power
+  tempo: 140
+  time: 4/4
+  key: E minor
+  style: instrumental hard rock
+instruments:
+  dr:
+    type: drums
+  bs:
+    type: bass
+  gt:
+    type: guitar
+    tone: crunch
+  lead:
+    type: guitar
+    tone: lead
+  org:
+    type: organ
+    model:
+      registration: rock
+patterns:
+  tight:
+    type: drums
+    bars: 1
+    hits: 'hh: every 0.5
+
+      sd: 2!acc 2.75!ghost 4!acc
+
+      bd: 1 1.5 3 4.5'
+  open:
+    type: drums
+    bars: 1
+    hits: 'rd: every 0.5
+
+      sd: 2!acc 4!acc
+
+      bd: 1 2.5 3 3.5'
+  fill:
+    type: drums
+    bars: 1
+    hits: 'hh: 1 1.5 2 2.5
+
+      sd: 2!acc 3 3.25
+
+      t1: 3.5 3.75
+
+      t2: 4 4.25
+
+      t3: 4.5 4.75!acc
+
+      bd: 1 3'
+  half:
+    type: drums
+    bars: 1
+    hits: 'hh: 1 2 3 4
+
+      sd: 3!acc
+
+      bd: 1 1.5 4.5'
+  bass_hook:
+    type: pitched
+    bars: 2
+    notes: E1:8!acc E1:8 r:8 E1:8 B1:4 D2:8 E2:8 | E1:4 E1:8 E1:8 B1:4 D2:8 B1:8
+  riff:
+    type: pitched
+    bars: 2
+    notes: E2:8!pm!acc E2:8!pm r:8 E2:8!pm [G2 D3]:4 [D3 A3]:8 [E3 B3]:8 | E2:4!pm E2:8!pm E2:8!pm [B2 F#3]:4 [D3
+      A3]:8 [B2 F#3]:8
+  anthem:
+    type: pitched
+    bars: 8
+    notes: B4:4 D5:4 E5:8 F#5:8 D5:4 | E5:4 D5:4 C#5:8 D5:8 A4:4 | B4:4 D5:4 E5:8 F#5:8 G5:4 | E5:4 D5:8 C5:8 B4:4
+      G4:4 | B4:4 D5:4 E5:8 F#5:8 E5:4 | D5:4 A4:4 B4:8 A4:8 F#4:4 | G4:4 A4:4 B4:8 C5:8 E5:4 | D#5:4 B4:4 A4:8
+      F#4:8 D#4:4
+  chorus_pulse:
+    type: drums
+    bars: 2
+    hits: 'rd: 1 1.5 2 2.5 3.5 4 4.5 | 1 2 2.5 3 3.5 4
+
+      sd: 2!acc 4!acc | 2!acc 3.75!ghost 4!acc
+
+      bd: 1 2.5 3.5 | 1 1.5 3 4.5'
+sections:
+  intro:
+    bars: 4
+    dynamic: mf
+    chords: Em | Em | Em | D
+    parts:
+      dr:
+        use: tight
+        replace:
+          1-2:
+            hits: 'hh: 1 2 3 4 | 1 2 3 4'
+          4:
+            use: fill
+        add:
+          3:
+            hits: 'cr: 1!acc'
+      bs:
+        use: bass_hook
+        replace:
+          1:
+            notes: r:1
+          4:
+            notes: (D2:8)*8
+      gt:
+        use: riff
+        replace:
+          4:
+            notes: '[D3 A3 D4]:4!pm ([D3 A3 D4]:8!pm)*4 [D3 A3 D4]:4'
+  verse:
+    bars: 8
+    dynamic: mf
+    chords: Em | Em | C | D | Em | Em | C | B7
+    parts:
+      dr:
+        use: tight
+        replace:
+          8:
+            use: fill
+        add:
+          1:
+            hits: 'cr: 1!acc'
+      bs:
+        use: bass_hook
+        replace:
+          3:
+            notes: (C2:8)*8
+          4:
+            notes: (D2:8)*8
+          7:
+            notes: (C2:8)*8
+          8:
+            notes: B1:4 B1:8 B1:8 F#2:4 D#2:8 B1:8
+      gt:
+        use: riff
+        replace:
+          3:
+            notes: '[C3 G3 C4]:4!pm ([C3 G3 C4]:8!pm)*4 [C3 G3 C4]:4'
+          4:
+            notes: '[D3 A3 D4]:4!pm ([D3 A3 D4]:8!pm)*4 [D3 A3 D4]:4'
+          7:
+            notes: '[C3 G3 C4]:4!pm ([C3 G3 C4]:8!pm)*4 [C3 G3 C4]:4'
+          8:
+            notes: '[B2 F#3 B3]:4!pm ([B2 F#3 B3]:8!pm)*4 [B2 F#3 B3]:4'
+      org:
+        dynamic: mp
+        leslie: slow
+        notes: '[G3 B3 E4]:1 | [G3 B3 E4]:1 | [G3 C4 E4]:1 | [A3 D4 F#4]:1 | [G3 B3 E4]:1 | [G3 B3 E4]:1 | [G3 C4
+          E4]:1 | [A3 B3 D#4 F#4]:1'
+  pre:
+    bars: 4
+    dynamic: mf
+    chords: Am | C | D | B7
+    parts:
+      dr:
+        use: tight
+        replace:
+          4:
+            hits: 'sd: 1 1.5 2 2.5 3!acc 3.5 4!acc 4.5
+
+              bd: 1 2 3 4'
+      bs:
+        notes: (A1:8)*8 | (C2:8)*8 | (D2:8)*8 | (B1:8)*8
+      gt:
+        notes: '[A2 E3 A3]:4!pm ([A2 E3 A3]:8!pm)*4 [A2 E3 A3]:4 | [C3 G3 C4]:4!pm ([C3 G3 C4]:8!pm)*4 [C3 G3 C4]:4
+          | [D3 A3 D4]:4!pm ([D3 A3 D4]:8!pm)*4 [D3 A3 D4]:4 | [B2 F#3 B3]:4!pm ([B2 F#3 B3]:8!pm)*4 [B2 F#3 B3]:4'
+      org:
+        dynamic: mf
+        leslie: slow
+        notes: '[A3 C4 E4]:1 | [G3 C4 E4]:1 | [A3 D4 F#4]:1 | [A3 B3 D#4 F#4]:1'
+      lead:
+        dynamic: mf
+        notes: r:1 | r:2 E4:8 G4:4. | F#4:2 A4:4 r:4 | r:2 F#4:4 B4:8 A4:8
+  chorus:
+    bars: 8
+    dynamic: f
+    chords: Gmaj7 | D/F# | Em7 | Cadd9 | Em7 | D/F# | Am7 | B7
+    parts:
+      dr:
+        use: chorus_pulse
+        replace:
+          8:
+            use: fill
+          4:
+            hits: 'rd: 1 1.5 2 2.5 3 3.5
+
+              sd: 2!acc 4!acc 4.5!ghost
+
+              bd: 1 2.5 3.5'
+        add:
+          1:
+            hits: 'cr: 1!acc'
+      bs:
+        notes: G1:4 D2:8 G1:8 B1:4 r:8 G1:8 | F#1:4. A1:8 D2:4 A1:8 F#1:8 | E1:4 B1:8 E2:8 D2:4 B1:8 E1:8 | C2:2
+          G1:4 r:8 D2:8 | E1:4 B1:8 E2:8 G1:4 B1:4 | F#1:4. A1:8 D2:4 A1:8 G1:8 | A1:4 E2:8 G2:8 C2:4 E2:8 C2:8
+          | B1:4 F#2:8 B1:8 D#2:4 F#2:8 B1:8
+      gt:
+        notes: '[G2 D3 G3]:8!acc r:8 [G2 D3 G3]:4 [G2 D3 G3]:4. [G2 D3 G3]:8 | [F#2 A2 D3]:2 r:8 [F#2 A2 D3]:8 [F#2
+          A2 D3]:4 | [E2 B2 E3]:8!acc r:8 [E2 B2 E3]:4 [E2 B2 E3]:4. [E2 B2 E3]:8 | [C3 G3 D4]:2 [C3 G3 D4]:4 r:8
+          [C3 G3 D4]:8 | [E2 B2 E3]:4. [E2 B2 E3]:8 r:8 [E2 B2 E3]:8 [E2 B2 E3]:4 | [F#2 A2 D3]:2 r:8 [F#2 A2 D3]:8
+          [F#2 A2 D3]:4 | [A2 E3 G3]:8!acc r:8 [A2 E3 G3]:4 [A2 E3 G3]:4. [A2 E3 G3]:8 | [B2 F#3 B3]:2 [B2 F#3 B3]:4
+          r:4'
+      org:
+        dynamic: mf
+        leslie: fast
+        notes: '[B3 D4 F#4]:1 | [A3 D4 F#4]:1 | [B3 D4 G4]:1 | [G3 D4 E4]:1 | [B3 D4 G4]:1 | [A3 D4 F#4]:1 | [G3
+          C4 E4]:1 | [A3 D#4 F#4]:1'
+      lead:
+        use: anthem
+  bridge:
+    bars: 4
+    dynamic: mf
+    chords: Em | Em | C | B7
+    parts:
+      dr:
+        use: half
+        replace:
+          3:
+            hits: 'hh: every 0.5
+
+              sd: 3!acc
+
+              bd: 1 2.5 4.5'
+          4:
+            hits: 'hh: 1 1.5 2 2.5
+
+              sd: 2!acc 3 3.5
+
+              t2: 4
+
+              t3: 4.5
+
+              bd: 1 2.5 3 4'
+        add:
+          1:
+            hits: 'cr: 1!acc'
+      bs:
+        notes: E1:2 r:4 E1:4 | E1:4 r:4 B1:2 | C2:2 G1:2 | B1:2 F#2:4 r:4
+        replace:
+          4:
+            notes: B1:4 B1:8 B1:8 F#2:4 B1:8 D#2:8
+      gt:
+        dynamic: mp
+        notes: '[E2 B2 E3]:2!st r:4 [E2 B2 E3]:4!st | E2:4!pm r:4 [B2 F#3]:2 | [C3 G3 C4]:2 r:4 [C3 G3]:4 | [B2
+          F#3 B3]:2 [B2 F#3]:4!st r:4'
+        replace:
+          3:
+            notes: '@mp [C3 G3 C4]:2 [C3 G3]:4 @mf [C3 G3]:8 [C3 G3]:8'
+          4:
+            notes: '@mf [B2 F#3 B3]:2 [B2 F#3]:4 [B2 F#3]:8 [B2 F#3]:8'
+      org:
+        dynamic: mp
+        leslie: slow
+        notes: '[G3 B3 E4]:1 | [G3 B3 E4]:1 | [G3 C4 E4]:1 | [A3 B3 D#4 F#4]:1'
+      lead:
+        dynamic: mp
+        notes: E4:2 r:2 | B3:8 D4:4. r:2 | E4:8 G4:4. B4:4 r:4 | @mf F#4:2 A4:4 B4:8 D#5:8
+  solo:
+    bars: 8
+    dynamic: f
+    chords: Em | G | Am | C | Em | D | C | Dsus4 D
+    parts:
+      dr:
+        use: open
+        replace:
+          8:
+            hits: 'rd: 1 1.5 2 2.5
+
+              sd: 2!acc 3
+
+              t1: 3.5
+
+              t2: 4
+
+              bd: 1 3
+
+              ho: 4.5'
+          1:
+            hits: 'rd: 1 1.5 2 2.5 3 3.5 4 4.5
+
+              sd: 3!acc
+
+              bd: 1 2.5 4.5'
+        add:
+          1:
+            hits: 'cr: 1!acc'
+      bs:
+        notes: E1:4 E1:8 E1:8 E1:4 E1:8 E1:8 | G1:4 G1:8 G1:8 G1:4 G1:8 G1:8 | A1:4 A1:8 A1:8 A1:4 A1:8 A1:8 | C2:4
+          C2:8 C2:8 C2:4 C2:8 C2:8 | E1:4 E1:8 E1:8 E1:4 E1:8 E1:8 | D2:4 D2:8 D2:8 D2:4 D2:8 D2:8 | C2:4 C2:8 C2:8
+          C2:4 C2:8 C2:8 | B1:4 B1:8 B1:8 B1:4 B1:8 B1:8
+        replace:
+          8:
+            notes: D2:4 D2:8 A1:8 D2:4 F#2:8 A1:8
+      gt:
+        notes: '[E2 B2 E3]:4.!acc [E2 B2 E3]:8~ [E2 B2 E3]:4 [E2 B2 E3]:4 | [G2 D3 G3]:4.!acc [G2 D3 G3]:8~ [G2
+          D3 G3]:4 [G2 D3 G3]:4 | [A2 E3 A3]:4.!acc [A2 E3 A3]:8~ [A2 E3 A3]:4 [A2 E3 A3]:4 | [C3 G3 C4]:4.!acc
+          [C3 G3 C4]:8~ [C3 G3 C4]:4 [C3 G3 C4]:4 | [E2 B2 E3]:4.!acc [E2 B2 E3]:8~ [E2 B2 E3]:4 [E2 B2 E3]:4 |
+          [D3 A3 D4]:4.!acc [D3 A3 D4]:8~ [D3 A3 D4]:4 [D3 A3 D4]:4 | [C3 G3 C4]:4.!acc [C3 G3 C4]:8~ [C3 G3 C4]:4
+          [C3 G3 C4]:4 | [B2 F#3 B3]:4.!acc [B2 F#3 B3]:8~ [B2 F#3 B3]:4 [B2 F#3 B3]:4'
+        replace:
+          8:
+            notes: '[D3 G3 A3]:2 [D3 F#3 A3]:4 r:4'
+      org:
+        dynamic: mf
+        leslie: fast
+        notes: '[G3 B3 E4]:1 | [G3 B3 D4]:1 | [A3 C4 E4]:1 | [G3 C4 E4]:1 | [G3 B3 E4]:1 | [A3 D4 F#4]:1 | [G3 C4
+          E4]:1 | [A3 B3 D#4 F#4]:1'
+        replace:
+          8:
+            notes: '[A3 D4 G4]:2 [A3 D4 F#4]:2'
+      lead:
+        dynamic: f
+        notes: E5:4.!acc B4:8 D5:4 B4:8 G4:8 | B4:8 D5:4. A4:8 B4:4. | A4:8 C5:8 E5:4 D5:8 C5:8 A4:4 | G4:8 A4:8
+          G4:8 E4:8 D4:4 E4:4 | (E4:8t G4:8t B4:8t)*2 E5:4 D5:8 B4:8 | A4:4 F#4:8 A4:8 D5:4 C5:8 A4:8 | G4:8!acc
+          C5:4. B4:8 G4:4. | A4:4 G4:8 F#4:8 D4:4 A4:8 B4:8
+  break:
+    bars: 2
+    dynamic: f
+    chords: Em | Em
+    parts:
+      dr:
+        hits: 'sd: 2 3 4 | 1 1.5 2 2.5 3 3.25 3.5 3.75 4!acc 4.5
+
+          bd: 1 3 | 1 3
+
+          t1: 1.5 |
+
+          cr: 1!acc |'
+  outro:
+    bars: 4
+    dynamic: f
+    chords: Em | D | Em | Em
+    parts:
+      dr:
+        use: tight
+        replace:
+          2:
+            use: fill
+          3:
+            hits: 'cr: 1!acc
+
+              bd: 1!acc'
+          4:
+            hits: 'hh:'
+      bs:
+        notes: E1:8 E1:8 r:8 E1:8 B1:4 D2:8 E2:8 | D2:2 B1:4 D2:4 | E1:1~ | E1:1
+      gt:
+        use: riff
+        replace:
+          2:
+            notes: '[D3 A3 D4]:2 [B2 F#3 B3]:4 [D3 A3 D4]:4'
+          3-4:
+            notes: '[E2 B2 E3]:1~ | [E2 B2 E3]:1'
+      org:
+        dynamic: mp
+        notes: r:1 | r:1 | [G3 B3 E4]:1~ | [G3 B3 E4]:1
+      lead:
+        notes: B4:8!acc E5:4. D5:8 B4:4. | A4:4 F#4:8 D4:8 B3:2 | E4:1~ | E4:1
+  verse2:
+    extends: verse
+    parts:
+      lead:
+        dynamic: mp
+        notes: r:1 | r:2 B3:8 D4:4. | r:1 | A3:8 D4:4. r:2 | r:1 | r:2 G4:8 B4:4. | E4:2 r:2 | F#4:4 D#4:4 B3:4
+          r:4
+  final:
+    extends: chorus
+    parts:
+      lead:
+        use: anthem
+        replace:
+          5:
+            notes: B4:4 D5:4 E5:8 F#5:8 G5:4
+          6:
+            notes: F#5:4 E5:4 D5:8 C#5:8 A4:4
+          7:
+            notes: B4:4 C5:4 D5:8 E5:8 C5:4
+          8:
+            notes: B4:4 A4:4 F#4:8 D#4:8 B4:4
+  chorus_to_bridge:
+    extends: chorus
+    parts:
+      lead:
+        use: anthem
+      dr:
+        use: chorus_pulse
+        add:
+          1:
+            hits: 'cr: 1!acc'
+        replace:
+          8:
+            hits: 'rd: 1 1.5 2 2.5
+
+              sd: 2!acc 3
+
+              t2: 3.5
+
+              t3: 4!acc
+
+              bd: 1 3'
+form:
+- intro
+- verse
+- pre
+- chorus
+- verse2
+- pre
+- chorus_to_bridge
+- bridge
+- solo
+- break
+- final
+- outro
+performance:
+  seed: 1010
+  humanize:
+    timing_ms: 4
+    velocity: 0.035
+  parts:
+    dr:
+      lanes:
+        sd:
+          offset_ms: 10
+        hh:
+          velocity: -0.07
+    bs:
+      offset_ms: 2
+    gt:
+      strum_ms: 6
+    lead:
+      offset_ms: -2
+mix:
+  space: room
+  dr:
+    gain_db: 0
+  bs:
+    gain_db: -1
+  gt:
+    gain_db: -2
+    pan: -0.35
+  lead:
+    gain_db: -3
+    pan: 0.3
+    reverb: more
+  org:
+    gain_db: -8
+    pan: 0.1
+  master:
+    style: rock
+    loudness: -14

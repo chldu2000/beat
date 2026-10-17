@@ -1,0 +1,16 @@
+id: t7-edit-warnings
+kind: edit
+start: evals/refs/after_the_power.beat.yaml
+# The start file validates with 3 arrangement warnings (muddy F#2+A2 in the chorus guitar) that the
+# prompt does not mention: final_warnings shows whether the agent acts on validate's warnings.
+prompt: |
+  song.beat.yaml contains an existing song. Make these changes:
+
+  1. Add a new 2-bar section with id `break`, played after the solo and before `final`. Only the
+     drums play in it (a groove or fill that builds into the last chorus); everyone else is silent.
+  2. Make the snare drum lay back 5 ms more than it currently does, everywhere in the song.
+checks:
+  form: [intro, verse, pre, chorus, verse2, pre, chorus_to_bridge, bridge, solo, break, final, outro]
+  section_bars: { break: 2 }
+  section_parts: { break: { play: [dr], silent: [bs, gt, lead, org] } }
+  perf: { path: parts.dr.lanes.sd.offset_ms, equals: 10 }
