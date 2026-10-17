@@ -5,7 +5,7 @@ plus a list of (bar_index | None, message) problems for the caller to locate.
 """
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from fractions import Fraction
 
 from .diagnostics import did_you_mean
@@ -15,6 +15,7 @@ DYNAMICS = {
     "ppp": 0.15, "pp": 0.25, "p": 0.38, "mp": 0.50,
     "mf": 0.63, "f": 0.78, "ff": 0.90, "fff": 1.0,
 }
+HAIRPINS = {"<": "crescendo", ">": "diminuendo"}
 
 # Articulations that only make sense on fretted string instruments.
 STRING_ARTS = {"pm", "x", "h", "p", "sl", "bend", "release", "vib", "fall", "harm"}
@@ -95,6 +96,9 @@ def parse_notes(text: str, bar_beats: Fraction, level: float) -> tuple[list[list
     dur = Fraction(1)
     lvl = level
     prev_bar: list[Item] | None = None
+    # An open hairpin (`@<` / `@>`): where it started, its sign, and the items it covers so far as
+    # (list holding the item, index, position from the start of the string).
+    hairpin: tuple[Fraction, str, list[tuple[list[Item], int, Fraction]]] | None = None
 
     for bi, bar_text in enumerate(text.split("|")):
         bar_text = bar_text.strip()
@@ -103,6 +107,8 @@ def parse_notes(text: str, bar_beats: Fraction, level: float) -> tuple[list[list
                 problems.append((bi, "'%' has no previous bar to repeat"))
                 prev_bar = []
             bars.append(list(prev_bar))
+            if hairpin:
+                hairpin[2].extend((bars[-1], i, bi * bar_beats + it.onset) for i, it in enumerate(bars[-1]))
             continue
 
         bar_text = _expand_groups(bar_text)
@@ -114,11 +120,22 @@ def parse_notes(text: str, bar_beats: Fraction, level: float) -> tuple[list[list
         t = Fraction(0)
         for tok in _TOKEN_RE.findall(bar_text):
             if tok.startswith("@"):
-                if tok[1:] in DYNAMICS:
-                    lvl = DYNAMICS[tok[1:]]
+                here = bi * bar_beats + t
+                if tok[1:] in HAIRPINS:
+                    if hairpin:
+                        problems.append((bi, f"'{tok}' starts before the previous '@{hairpin[1]}' has reached its "
+                                             f"dynamic; end that one first, e.g. '@f'"))
+                    hairpin = (here, tok[1:], [])
+                elif tok[1:] in DYNAMICS:
+                    target = DYNAMICS[tok[1:]]
+                    if hairpin:
+                        _end_hairpin(hairpin, here, lvl, target, tok, bi, problems)
+                        hairpin = None
+                    lvl = target
                 else:
-                    problems.append((bi, f"unknown dynamic '{tok}'{did_you_mean(tok, ['@' + d for d in DYNAMICS])} "
-                                        f"(use one of {', '.join('@' + d for d in DYNAMICS)})"))
+                    names = ['@' + d for d in DYNAMICS] + ['@' + h for h in HAIRPINS]
+                    problems.append((bi, f"unknown dynamic '{tok}'{did_you_mean(tok, names)} "
+                                        f"(use one of {', '.join(names)})"))
                 continue
 
             m = _NOTE_RE.match(tok)
@@ -184,6 +201,8 @@ def parse_notes(text: str, bar_beats: Fraction, level: float) -> tuple[list[list
                     pitches = ()
 
             items.append(Item(t, dur, pitches, lvl, tie, arts))
+            if hairpin:
+                hairpin[2].append((items, len(items) - 1, bi * bar_beats + t))
             t += dur
 
         if t < bar_beats:
@@ -196,7 +215,25 @@ def parse_notes(text: str, bar_beats: Fraction, level: float) -> tuple[list[list
         bars.append(items)
         prev_bar = items
 
+    if hairpin:
+        problems.append((None, f"'@{hairpin[1]}' has no dynamic to reach: end the {HAIRPINS[hairpin[1]]} with a "
+                               f"dynamic later in the same notes string, e.g. '@mp @{hairpin[1]} E2:4 E2 E2 E2 | "
+                               f"@{'f' if hairpin[1] == '<' else 'p'} E2:1'"))
     return bars, problems
+
+
+def _end_hairpin(hairpin, end: Fraction, start_lvl: float, target: float, tok: str, bi: int,
+                 problems: Problems) -> None:
+    """Spread the levels of the notes under a hairpin from where it started to the dynamic that ends it."""
+    start, sign, covered = hairpin
+    if (target <= start_lvl) if sign == "<" else (target >= start_lvl):
+        louder = "louder" if sign == "<" else "softer"
+        problems.append((bi, f"'@{sign}' ends on '{tok}', which is not {louder} than where it started; "
+                             f"use '@{'>' if sign == '<' else '<'}' or a {louder} dynamic"))
+        return
+    for holder, i, pos in covered:
+        frac = (pos - start) / (end - start) if end > start else 1
+        holder[i] = replace(holder[i], level=start_lvl + (target - start_lvl) * float(frac))
 
 
 _POS_RE = re.compile(r"^(\d+(?:\.\d+)?)(?:\+(\d+)/(\d+))?((?:![a-z]+)*)$")

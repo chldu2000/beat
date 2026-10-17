@@ -385,3 +385,62 @@ sections:
     assert "!release has no bend to release" in messages(diags, "warning")
     a4 = next(e for e in c.events if e.pitch == parse_pitch("A4"))
     assert a4.arts == {"bend": 2.0, "tied": [{"at": 1.0, "release": True}]}
+
+
+def test_dynamic_ramps():
+    diags, c = build("""
+sections:
+  a:
+    bars: 2
+    dynamic: { from: p, to: f }
+    parts:
+      bs: { notes: "E1:1 | E1:1" }
+      gt: { dynamic: ff, notes: "E2:1 | E2:1" }
+performance: { accents: 0 }
+""")
+    assert diags.items == []
+    bass = [e.velocity for e in c.events if e.part == "bs"]
+    assert bass == pytest.approx([0.38, (0.38 + 0.78) / 2])  # reaches f where the section ends
+    assert [e.velocity for e in c.events if e.part == "gt"] == pytest.approx([0.90, 0.90])
+
+    diags, _ = build("""
+sections:
+  a:
+    bars: 1
+    dynamic: { from: p, to: loud }
+    parts:
+      bs: { notes: "E1:1" }
+""")
+    assert "a ramp needs 'from' and 'to' dynamics" in messages(diags)
+
+
+def test_metric_accents():
+    body = """
+sections:
+  a:
+    bars: 1
+    parts:
+      dr: { hits: "hh: every 0.5" }
+      bs: { notes: "(E1:8)*8" }
+      org: { notes: "(E3:8)*8" }
+"""
+    diags, c = build(body)
+    assert diags.items == []
+    hh = [e.velocity for e in c.events if e.lane == "hh"]
+    assert hh[0] > hh[4] > hh[2] > hh[1]  # downbeat, beat 3, beat 2, an off-beat
+    assert hh[0] - hh[1] == pytest.approx(0.10 * 1.4)
+    assert len({e.velocity for e in c.events if e.part == "org"}) == 1  # no touch
+
+    _, flat = build(body + "performance: { accents: 0, parts: { dr: { lanes: { hh: { accents: 0.2 } } } } }\n")
+    assert len({e.velocity for e in flat.events if e.part == "bs"}) == 1
+    hh = [e.velocity for e in flat.events if e.lane == "hh"]
+    assert hh[0] - hh[1] == pytest.approx(0.2 * 1.4)
+
+
+def test_metric_weight_meters():
+    from fractions import Fraction as F
+
+    from beat.compile import metric_weight
+    assert [metric_weight(F(i, 2), (4, 4)) for i in range(8)] == [1, -0.4, 0.4, -0.4, 0.6, -0.4, 0.4, -0.4]
+    assert [metric_weight(F(i, 2), (6, 8)) for i in range(6)] == [1, -0.4, -0.4, 0.4, -0.4, -0.4]
+    assert metric_weight(F(1, 4), (4, 4)) == -1

@@ -18,8 +18,15 @@ DEFAULT_STRUM_MS = {"guitar": 8.0}
 # {"at": beats into the note, <art>: value}.
 LATE_ARTS = ("vib", "bend", "release", "fall")
 NO_TOUCH = {"organ"}  # keyboards whose loudness does not follow the key stroke: accents are ignored
-PERF_KEYS = {"seed", "humanize", "swing", "parts", "edits"}
-PART_PERF_KEYS = {"humanize", "swing", "offset_ms", "velocity", "strum_ms", "lanes"}
+# How much louder the downbeat is played and how much softer the finest subdivisions (velocity, 0-1;
+# scaled by metric_weight). Players lean on the beat and lighten the off-beats; the hi-hat's down/up
+# stroke alternation is the strongest case. Crashes and the organ (no touch) skip it.
+DEFAULT_ACCENTS = {"bass": 0.04, "guitar": 0.04, "piano": 0.05}
+DRUM_ACCENTS = {"hh": 0.10, "ho": 0.05, "rd": 0.08, "rb": 0.06, "bd": 0.04, "sd": 0.03, "ss": 0.03,
+                "t1": 0.03, "t2": 0.03, "t3": 0.03, "hp": 0.03}
+PERF_KEYS = {"seed", "humanize", "swing", "accents", "parts", "edits"}
+PART_PERF_KEYS = {"humanize", "swing", "accents", "offset_ms", "velocity", "strum_ms", "lanes"}
+LANE_PERF_KEYS = {"offset_ms", "velocity", "accents"}
 EDIT_KEYS = {"part", "section", "instance", "bar", "beat", "pitch", "lane", "velocity", "offset_ms", "length"}
 
 
@@ -248,6 +255,16 @@ def _apply_performance(compiled: Compiled, diags: Diagnostics) -> None:
             for k in cfg:
                 if k not in PART_PERF_KEYS:
                     diags.warn(f"performance > parts > {pid}", f"unknown key '{k}'{did_you_mean(k, PART_PERF_KEYS)}")
+            for lane, lane_cfg in (cfg.get("lanes") or {}).items():
+                for k in lane_cfg if isinstance(lane_cfg, dict) else ():
+                    if k not in LANE_PERF_KEYS:
+                        diags.warn(f"performance > parts > {pid} > lanes > {lane}",
+                                   f"unknown key '{k}'{did_you_mean(k, LANE_PERF_KEYS)}")
+
+    for pid, cfg in parts_cfg.items():
+        if pid in song.instruments and song.instruments[pid].type in NO_TOUCH and (cfg or {}).get("accents"):
+            diags.warn(f"performance > parts > {pid} > accents",
+                       f"{song.instruments[pid].type} has no touch, so accents have no effect")
 
     edits = _load_edits(perf.get("edits") or [], song, diags)
     edit_hits = [0] * len(edits)
@@ -262,6 +279,10 @@ def _apply_performance(compiled: Compiled, diags: Diagnostics) -> None:
 
         velocity = ev.velocity + _num(cfg.get("velocity"), 0, where, diags) \
             + _num(lane_cfg.get("velocity"), 0, where, diags)
+        if inst.type not in NO_TOUCH:
+            depth = next((c["accents"] for c in (lane_cfg, cfg, perf) if c.get("accents") is not None),
+                         DRUM_ACCENTS.get(ev.lane, 0) if ev.lane else DEFAULT_ACCENTS.get(inst.type, 0))
+            velocity += _num(depth, 0, f"{where} > accents", diags) * metric_weight(ev.pos_in_bar, song.time)
         offset_ms = _num(cfg.get("offset_ms"), 0, where, diags) + _num(lane_cfg.get("offset_ms"), 0, where, diags)
         strum = _num(cfg.get("strum_ms"), DEFAULT_STRUM_MS.get(inst.type, 0), where, diags)
         offset_ms += strum * ev.chord_rank
@@ -297,6 +318,23 @@ def _apply_performance(compiled: Compiled, diags: Diagnostics) -> None:
     for ed, hits in zip(edits, edit_hits):
         if hits == 0 and ed["section"] in active_sections:
             diags.error(ed["_where"], "edit matches no note (did the score change?)")
+
+
+def metric_weight(pos: Fraction, time: tuple[int, int]) -> float:
+    """How strong a position in the bar is: 1 on the downbeat, 0.6 on the middle beat of a four-beat
+    bar, 0.4 on other beats, -0.4 on halves or thirds of a beat, -1 on anything finer."""
+    if pos == 0:
+        return 1.0
+    num, den = time
+    compound = den == 8 and num % 3 == 0 and num > 3  # 6/8, 9/8, 12/8: the beat is a dotted quarter
+    beat = Fraction(12, den) if compound else Fraction(4, den)
+    in_beats = pos / beat
+    if in_beats.denominator == 1:
+        beats_in_bar = num // 3 if compound else num
+        return 0.6 if beats_in_bar == 4 and in_beats == 2 else 0.4
+    if (in_beats * 2).denominator == 1 or (in_beats * 3).denominator == 1:
+        return -0.4
+    return -1.0
 
 
 def _swing_shift(pos: Fraction, swing, diags: Diagnostics) -> Fraction:

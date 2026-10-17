@@ -1,7 +1,7 @@
 """Load a .beat.yaml file into a resolved Song: every section's parts expanded into bars of Items."""
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from fractions import Fraction
 
 import yaml
@@ -68,7 +68,7 @@ class Section:
     id: str
     bars: int
     tempo: float
-    dynamic: str
+    dynamic: tuple[float, float]  # levels at the start and the end of the section (equal unless it ramps)
     chords: list[list[ChordSpan]] | None
     parts: dict[str, list[list[Item]]]
     extends: str | None = None  # the section this one was derived from
@@ -286,11 +286,7 @@ def _load_section(sid: str, raw: dict, song: Song, patterns: dict, diags: Diagno
     if not isinstance(tempo, (int, float)) or tempo <= 0:
         diags.error(f"{where} > tempo", f"tempo must be a positive number, got {tempo!r}")
         tempo = song.tempo
-    dynamic = raw.get("dynamic", "mf")
-    if dynamic not in DYNAMICS:
-        diags.error(f"{where} > dynamic", f"unknown dynamic '{dynamic}'{did_you_mean(dynamic, DYNAMICS)} "
-                                          f"(use {', '.join(DYNAMICS)})")
-        dynamic = "mf"
+    dynamic = _dynamic(raw.get("dynamic", "mf"), f"{sid} > dynamic", diags) or _dynamic("mf", "", diags)
 
     section = Section(id=sid, bars=bars, tempo=float(tempo), dynamic=dynamic, chords=None, parts={},
                       extends=raw.get("extends"))
@@ -402,11 +398,10 @@ def _load_part(spec, inst: Instrument, section: Section, song: Song, patterns: d
         return empty
     _warn_unknown(spec, PART_KEYS, where, diags)
 
-    dynamic = spec.get("dynamic", section.dynamic)
-    if dynamic not in DYNAMICS:
-        diags.error(f"{where} > dynamic", f"unknown dynamic '{dynamic}'{did_you_mean(dynamic, DYNAMICS)}")
-        dynamic = section.dynamic
-    level = DYNAMICS[dynamic]
+    dynamic = section.dynamic
+    if "dynamic" in spec:
+        dynamic = _dynamic(spec["dynamic"], f"{where} > dynamic", diags) or dynamic
+    level = dynamic[0]
 
     sources = [k for k in ("notes", "grid", "hits", "use") if k in spec]
     if len(sources) != 1:
@@ -431,7 +426,36 @@ def _load_part(spec, inst: Instrument, section: Section, song: Song, patterns: d
             first, _ = key
             for i, extra in enumerate(abars):
                 bars[first - 1 + i] = _overlay(bars[first - 1 + i], extra, f"{where} > add", first + i, diags)
-    return bars
+    return _ramp(bars, dynamic, song.bar_beats)
+
+
+def _dynamic(value, where: str, diags: Diagnostics) -> tuple[float, float] | None:
+    """A section's or part's `dynamic`: a name (`mf`), or a ramp across it (`{ from: mp, to: f }`)."""
+    names = ", ".join(DYNAMICS)
+    if isinstance(value, dict):
+        _warn_unknown(value, {"from", "to"}, where, diags)
+        ends = [value.get("from"), value.get("to")]
+        bad = [str(v) for v in ends if v not in DYNAMICS]
+        if bad:
+            diags.error(where, f"a ramp needs 'from' and 'to' dynamics, e.g. {{ from: mp, to: f }} "
+                               f"(use {names}); got {', '.join(bad)}")
+            return None
+        return DYNAMICS[ends[0]], DYNAMICS[ends[1]]
+    if value not in DYNAMICS:
+        diags.error(where, f"unknown dynamic '{value}'{did_you_mean(str(value), DYNAMICS)} (use {names}, "
+                           f"or a ramp like {{ from: mp, to: f }})")
+        return None
+    return DYNAMICS[value], DYNAMICS[value]
+
+
+def _ramp(bars: list[list[Item]], dynamic: tuple[float, float], bar_beats: Fraction) -> list[list[Item]]:
+    """Shift every note by the part's ramp at its position, reaching `to` where the section ends."""
+    start, end = dynamic
+    if start == end:
+        return bars
+    total = float(len(bars) * bar_beats)
+    return [[replace(it, level=it.level + (end - start) * float(bi * bar_beats + it.onset) / total) for it in bar]
+            for bi, bar in enumerate(bars)]
 
 
 def _transpose(bars: list[list[Item]], spec: dict, inst: Instrument, where: str,

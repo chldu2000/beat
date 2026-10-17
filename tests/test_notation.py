@@ -1,5 +1,7 @@
 from fractions import Fraction
 
+import pytest
+
 from beat.notation import DYNAMICS, parse_grid, parse_notes
 from beat.pitch import parse_chord, parse_pitch, pitch_name
 
@@ -142,3 +144,26 @@ def test_inexact_decimals_are_rejected():
     assert "e.g. 1/3" in problems[0][1] and "e.g. 3+2/3" in problems[1][1]
     _, problems = parse_notes("C4:b2.5 C4:b1.5", BAR, 0.6)
     assert problems == []
+
+
+def test_hairpins():
+    bars, problems = parse_notes("@p @< E2:4 E2 E2 E2 | % | @f E2:1", BAR, DYNAMICS["mf"])
+    assert problems == []
+    levels = [it.level for bar in bars for it in bar]
+    # Spread from p at the first note to f where '@f' stands; the repeated bar keeps climbing.
+    assert levels[0] == DYNAMICS["p"] and levels[-1] == DYNAMICS["f"]
+    assert all(a < b for a, b in zip(levels, levels[1:]))
+    assert levels[4] - levels[0] == pytest.approx((DYNAMICS["f"] - DYNAMICS["p"]) / 2)
+
+    bars, problems = parse_notes("@f E2:2 @> E2:2 | @p E2:1", BAR, DYNAMICS["mf"])
+    assert problems == [] and [it.level for it in bars[0]] == [DYNAMICS["f"], DYNAMICS["f"]]
+    assert bars[1][0].level == DYNAMICS["p"]
+
+
+def test_hairpin_errors():
+    _, problems = parse_notes("@f @< E2:1", BAR, DYNAMICS["mf"])
+    assert "has no dynamic to reach" in problems[0][1]
+    _, problems = parse_notes("@f @< E2:1 | @p E2:1", BAR, DYNAMICS["mf"])
+    assert "not louder than where it started" in problems[0][1]
+    _, problems = parse_notes("@p @< E2:2 @> E2:2 | @f E2:1", BAR, DYNAMICS["mf"])
+    assert "starts before the previous" in problems[0][1]
