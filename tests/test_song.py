@@ -56,6 +56,7 @@ sections:
     bars: 2
     parts:
       bs: { notes: "E1:2~ E1:4 A1:4 | E1:1" }
+performance: { humanize: { drift_ms: 0 } }
 """)
     assert diags.items == []
     ev = c.events
@@ -240,6 +241,7 @@ sections:
     parts:
       bs: { notes: "(E1:8)*8" }
 performance:
+  humanize: { drift_ms: 0 }
   swing: { amount: 0.75, grid: 8 }
   edits:
     - { part: bs, section: a, bar: 1, beat: 2, velocity: 0.95 }
@@ -444,3 +446,33 @@ def test_metric_weight_meters():
     assert [metric_weight(F(i, 2), (4, 4)) for i in range(8)] == [1, -0.4, 0.4, -0.4, 0.6, -0.4, 0.4, -0.4]
     assert [metric_weight(F(i, 2), (6, 8)) for i in range(6)] == [1, -0.4, -0.4, 0.4, -0.4, -0.4]
     assert metric_weight(F(1, 4), (4, 4)) == -1
+
+
+def test_timing_drift():
+    body = """
+sections:
+  a:
+    bars: 16
+    parts:
+      dr: { hits: "bd: %s" }
+      bs: { notes: "%s" }
+""" % (" | ".join(["1 2 3 4"] * 16), " | ".join(["(E1:4)*4"] * 16))
+    diags, c = build(body)
+    assert not diags.errors
+    def offsets(compiled, part):
+        return np.array([(e.time - float(e.beat) * 0.5) * 1000 for e in compiled.events if e.part == part])
+    dr, bs = offsets(c, "dr"), offsets(c, "bs")
+    assert 1 < dr.std() < 30
+    # Slow, not per-note: neighbouring beats are close; bass and kick drift together.
+    assert np.abs(np.diff(dr)).mean() < dr.std()
+    assert np.std(bs - dr) < dr.std()
+
+    _, off = build(body + "performance: { humanize: { drift_ms: 0 } }\n")
+    assert np.allclose(offsets(off, "dr"), 0) and np.allclose(offsets(off, "bs"), 0)
+
+    _, own = build(body + "performance: { humanize: { drift_ms: 0 }, parts: { bs: { humanize: { drift_ms: 5 } } } }\n")
+    assert np.allclose(offsets(own, "dr"), 0) and offsets(own, "bs").std() > 1
+
+    # Adding a part leaves the others' timing alone.
+    _, more = build(body.replace("bs: {", "gt: { notes: \"E3:1\" }\n      bs: {"))
+    assert np.allclose(offsets(more, "dr"), dr) and np.allclose(offsets(more, "bs"), bs)

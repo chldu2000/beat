@@ -1,5 +1,6 @@
 """Compile a Song into a flat, performed event list (spec section 11)."""
 
+import zlib
 from dataclasses import dataclass, field
 from fractions import Fraction
 
@@ -24,6 +25,15 @@ NO_TOUCH = {"organ"}  # keyboards whose loudness does not follow the key stroke:
 DEFAULT_ACCENTS = {"bass": 0.04, "guitar": 0.04, "piano": 0.05}
 DRUM_ACCENTS = {"hh": 0.10, "ho": 0.05, "rd": 0.08, "rb": 0.06, "bd": 0.04, "sd": 0.03, "ss": 0.03,
                 "t1": 0.03, "t2": 0.03, "t3": 0.03, "hp": 0.03}
+# Timing drift (ms, standard deviation): slow, correlated pushing and dragging instead of per-note
+# jitter. The band drifts together (DRIFT_BAND_MS, a breathing tempo); each player also drifts against
+# the band, least the drummer, who keeps time, and the bass, who locks to the kick.
+DRIFT_BAND_MS = 8.0
+DRIFT_PART_MS = {"drums": 2.0, "bass": 3.0, "guitar": 4.0, "organ": 4.0, "piano": 4.0}
+# Time constants of the drift's components, in beats (about 1, 4 and 16 bars of 4/4): summed, they
+# approximate the 1/f fluctuation of human timing, which listeners prefer to white jitter.
+DRIFT_TAUS = (4, 16, 64)
+HUMANIZE_KEYS = {"timing_ms", "velocity", "drift_ms"}
 PERF_KEYS = {"seed", "humanize", "swing", "accents", "parts", "edits"}
 PART_PERF_KEYS = {"humanize", "swing", "accents", "offset_ms", "velocity", "strum_ms", "lanes"}
 LANE_PERF_KEYS = {"offset_ms", "velocity", "accents"}
@@ -244,8 +254,14 @@ def _apply_performance(compiled: Compiled, diags: Diagnostics) -> None:
                                       f"(allowed: {', '.join(sorted(PERF_KEYS))})")
 
     seed = int(_num(perf.get("seed"), 0, "performance > seed", diags))
-    rng = np.random.default_rng(seed)
     global_hum = perf.get("humanize") or {}
+    for where, hum in [("performance > humanize", global_hum)] + [
+            (f"performance > parts > {pid} > humanize", (c or {}).get("humanize") or {})
+            for pid, c in (perf.get("parts") or {}).items() if isinstance(c, dict)]:
+        for k in hum if isinstance(hum, dict) else ():
+            if k not in HUMANIZE_KEYS:
+                diags.warn(where, f"unknown key '{k}'{did_you_mean(k, HUMANIZE_KEYS)} "
+                                  f"(allowed: {', '.join(sorted(HUMANIZE_KEYS))})")
     global_swing = perf.get("swing")
     parts_cfg = perf.get("parts") or {}
     for pid, cfg in parts_cfg.items():
@@ -270,6 +286,18 @@ def _apply_performance(compiled: Compiled, diags: Diagnostics) -> None:
     edit_hits = [0] * len(edits)
     active_sections = {ins.section.id for ins in compiled.instances}
     chord_jitter: dict[int, float] = {}
+    # Each part draws from its own stream, so adding a part or a note leaves the others' jitter alone.
+    rngs = {pid: _rng(seed, f"jitter:{pid}") for pid in song.instruments}
+    n_beats = int(compiled.total_beats) + 2
+    band_ms = _num(global_hum.get("drift_ms"), DRIFT_BAND_MS, "performance > humanize > drift_ms", diags)
+    band = drift_curve(_rng(seed, "drift:band"), n_beats) * band_ms
+    drifts = {}
+    for pid, inst in song.instruments.items():
+        own = ((parts_cfg.get(pid) or {}).get("humanize") or {}).get("drift_ms")
+        # The band's setting scales every player's default too: one knob for a looser or tighter band.
+        default = DRIFT_PART_MS.get(inst.type, 0) * band_ms / DRIFT_BAND_MS
+        own_ms = _num(own, default, f"performance > parts > {pid} > humanize", diags)
+        drifts[pid] = band + drift_curve(_rng(seed, f"drift:{pid}"), n_beats) * own_ms
 
     for ev in compiled.events:
         inst = song.instruments[ev.part]
@@ -303,21 +331,41 @@ def _apply_performance(compiled: Compiled, diags: Diagnostics) -> None:
 
         hum = {**global_hum, **(cfg.get("humanize") or {})}
         # Always draw both numbers so changing one setting never reshuffles other notes.
-        jitter_t, jitter_v = rng.standard_normal(2)
+        jitter_t, jitter_v = rngs[ev.part].standard_normal(2)
         # Notes of one chord share `src`; they move together so the strum order survives.
         jitter_t = chord_jitter.setdefault(id(ev.src), jitter_t)
         offset_ms += jitter_t * _num(hum.get("timing_ms"), 0, "performance > humanize", diags)
         velocity += jitter_v * _num(hum.get("velocity"), 0, "performance > humanize", diags)
+        offset_ms += float(np.interp(float(ev.beat), np.arange(n_beats), drifts[ev.part]))
 
         t0 = compiled.beat_to_sec(float(start))
         t1 = compiled.beat_to_sec(float(start + ev.beats * Fraction(length).limit_denominator(1000)))
-        ev.time = max(0.0, t0 + offset_ms / 1000)
+        ev.time = max(0.0, t0 + float(offset_ms) / 1000)
         ev.dur = max(0.005, t1 - t0)
         ev.velocity = float(np.clip(velocity, 0.05, 1.0))
 
     for ed, hits in zip(edits, edit_hits):
         if hits == 0 and ed["section"] in active_sections:
             diags.error(ed["_where"], "edit matches no note (did the score change?)")
+
+
+def _rng(seed: int, name: str) -> np.random.Generator:
+    return np.random.default_rng([seed, zlib.crc32(name.encode())])
+
+
+def drift_curve(rng: np.random.Generator, n_beats: int) -> np.ndarray:
+    """Unit-variance drift sampled once per beat: a sum of slow random walks that pull back to zero
+    (one per time constant in DRIFT_TAUS), so it wanders like human timing but never runs away."""
+    out = np.zeros(n_beats)
+    for tau in DRIFT_TAUS:
+        a = np.exp(-1 / tau)
+        noise = rng.standard_normal(n_beats) * np.sqrt(1 - a * a)
+        x = np.empty(n_beats)
+        x[0] = rng.standard_normal()  # start anywhere in the walk's usual range
+        for i in range(1, n_beats):
+            x[i] = a * x[i - 1] + noise[i]
+        out += x
+    return out / np.sqrt(len(DRIFT_TAUS))
 
 
 def metric_weight(pos: Fraction, time: tuple[int, int]) -> float:
