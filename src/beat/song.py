@@ -73,6 +73,7 @@ class Section:
     parts: dict[str, list[list[Item]]]
     extends: str | None = None  # the section this one was derived from
     controls: dict[str, dict[str, str]] = field(default_factory=dict)  # part -> settings held for the section
+    dynamics: dict[str, tuple[float, float]] = field(default_factory=dict)  # part -> its levels (start, end)
 
 
 @dataclass
@@ -402,6 +403,7 @@ def _load_part(spec, inst: Instrument, section: Section, song: Song, patterns: d
     if "dynamic" in spec:
         dynamic = _dynamic(spec["dynamic"], f"{where} > dynamic", diags) or dynamic
     level = dynamic[0]
+    section.dynamics[inst.id] = dynamic
 
     sources = [k for k in ("notes", "grid", "hits", "use") if k in spec]
     if len(sources) != 1:

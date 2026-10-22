@@ -1,3 +1,5 @@
+import json
+from fractions import Fraction
 from pathlib import Path
 
 import numpy as np
@@ -476,3 +478,52 @@ sections:
     # Adding a part leaves the others' timing alone.
     _, more = build(body.replace("bs: {", "gt: { notes: \"E3:1\" }\n      bs: {"))
     assert np.allclose(offsets(more, "dr"), dr) and np.allclose(offsets(more, "bs"), bs)
+
+
+def test_fills_rush_and_builds_push():
+    groove = "hh: every 0.5\nsd: 2 4\nbd: 1 3"
+    fill = "hh: 1 1.5 2 2.5\nsd: 2 3 3.25 3.5 3.75\nt3: 4 4.5\nbd: 1"
+    body = f"""
+patterns:
+  groove: {{ bars: 1, hits: {json.dumps(groove)} }}
+  fill: {{ bars: 1, hits: {json.dumps(fill)} }}
+  ghosts: {{ bars: 1, hits: "hh: every 0.5\\nsd: 1.75!ghost 2 2.75!ghost 4 4.5!ghost\\nbd: 1 3" }}
+  toms: {{ bars: 1, hits: "t3: every 0.5\\nsd: 2 4\\nbd: 1 3" }}
+sections:
+  a:
+    bars: 4
+    parts:
+      dr: {{ use: groove, replace: {{ 4: {{ use: fill }} }} }}
+  b:
+    bars: 4
+    dynamic: {{ from: mp, to: f }}
+    parts:
+      dr: {{ use: groove, replace: {{ 4: {{ use: ghosts }} }} }}
+      bs: {{ notes: "E1:1 | E1:1 | E1:1 | E1:1" }}
+      gt: {{ notes: "E2:1 | E2:1 | E2:1 | E2:1" }}
+  c:
+    bars: 4
+    parts:
+      dr: {{ use: toms }}
+"""
+    from beat.compile import find_fills
+    off = "performance: { humanize: { drift_ms: 0 } }\n"
+    diags, c = build(body + off, form="[a, b, c]")
+    assert not diags.errors
+    # The fill departs from the groove where the kick on 3 drops out; toms and a snare run follow.
+    assert find_fills(c, "dr") == {("a", 1, 4): Fraction(2)}
+
+    def late(e):
+        return (e.time - c.beat_to_sec(float(e.beat))) * 1000
+    fill_hits = [e for e in c.events if e.src["section"] == "a" and e.src["bar"] == 4]
+    assert all(late(e) == pytest.approx(-10 * float(max(e.pos_in_bar - 2, 0)) / 2) for e in fill_hits)
+    assert late(next(e for e in c.events if e.src["section"] == "b" and e.lane == "bd")) == 0  # lands
+
+    # A build pushes drums and bass ahead, more as it goes; the guitar holds.
+    bass = [late(e) for e in c.events if e.part == "bs"]
+    assert bass == pytest.approx([0, -1.25, -2.5, -3.75])
+    assert all(late(e) == 0 for e in c.events if e.part == "gt")
+
+    _, still = build(body + "performance: { humanize: { drift_ms: 0 }, feel: { fill_rush_ms: 0, build_push_ms: 0 } }\n",
+                     form="[a, b, c]")
+    assert all(abs(e.time - still.beat_to_sec(float(e.beat))) < 1e-9 for e in still.events if e.part != "gt")

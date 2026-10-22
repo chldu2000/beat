@@ -34,7 +34,13 @@ DRIFT_PART_MS = {"drums": 2.0, "bass": 3.0, "guitar": 4.0, "organ": 4.0, "piano"
 # approximate the 1/f fluctuation of human timing, which listeners prefer to white jitter.
 DRIFT_TAUS = (4, 16, 64)
 HUMANIZE_KEYS = {"timing_ms", "velocity", "drift_ms"}
-PERF_KEYS = {"seed", "humanize", "swing", "accents", "parts", "edits"}
+# Timing with an intent (ms): drummers rush fills and land the next downbeat on time; in a section
+# that builds (its dynamic ramps up) drums and bass lean further ahead until the next section.
+FEEL = {"fill_rush_ms": 10.0, "build_push_ms": 5.0}
+PUSHING = {"drums", "bass"}
+TOMS = {"t1", "t2", "t3"}
+DRUMS = {"bd", "sd", "ss"} | TOMS  # fills are told apart on these, not on cymbals or the hi-hat
+PERF_KEYS = {"seed", "humanize", "swing", "accents", "feel", "parts", "edits"}
 PART_PERF_KEYS = {"humanize", "swing", "accents", "offset_ms", "velocity", "strum_ms", "lanes"}
 LANE_PERF_KEYS = {"offset_ms", "velocity", "accents"}
 EDIT_KEYS = {"part", "section", "instance", "bar", "beat", "pitch", "lane", "velocity", "offset_ms", "length"}
@@ -282,6 +288,17 @@ def _apply_performance(compiled: Compiled, diags: Diagnostics) -> None:
             diags.warn(f"performance > parts > {pid} > accents",
                        f"{song.instruments[pid].type} has no touch, so accents have no effect")
 
+    feel = perf.get("feel") or {}
+    if not isinstance(feel, dict):
+        diags.error("performance > feel", "feel must look like { fill_rush_ms: 10, build_push_ms: 5 }")
+        feel = {}
+    for k in feel:
+        if k not in FEEL:
+            diags.warn("performance > feel", f"unknown key '{k}'{did_you_mean(k, FEEL)} (allowed: {', '.join(FEEL)})")
+    rush = _num(feel.get("fill_rush_ms"), FEEL["fill_rush_ms"], "performance > feel > fill_rush_ms", diags)
+    push = _num(feel.get("build_push_ms"), FEEL["build_push_ms"], "performance > feel > build_push_ms", diags)
+    intent = _intent_offsets(compiled, rush, push)
+
     edits = _load_edits(perf.get("edits") or [], song, diags)
     edit_hits = [0] * len(edits)
     active_sections = {ins.section.id for ins in compiled.instances}
@@ -337,6 +354,7 @@ def _apply_performance(compiled: Compiled, diags: Diagnostics) -> None:
         offset_ms += jitter_t * _num(hum.get("timing_ms"), 0, "performance > humanize", diags)
         velocity += jitter_v * _num(hum.get("velocity"), 0, "performance > humanize", diags)
         offset_ms += float(np.interp(float(ev.beat), np.arange(n_beats), drifts[ev.part]))
+        offset_ms += intent.get(id(ev), 0.0)
 
         t0 = compiled.beat_to_sec(float(start))
         t1 = compiled.beat_to_sec(float(start + ev.beats * Fraction(length).limit_denominator(1000)))
@@ -347,6 +365,59 @@ def _apply_performance(compiled: Compiled, diags: Diagnostics) -> None:
     for ed, hits in zip(edits, edit_hits):
         if hits == 0 and ed["section"] in active_sections:
             diags.error(ed["_where"], "edit matches no note (did the score change?)")
+
+
+def find_fills(compiled: Compiled, part: str) -> dict[tuple[str, int, int], Fraction]:
+    """Drum fills of a part: (section, instance, bar) -> the beat in the bar where the fill starts.
+
+    A fill is a phrase-ending bar (every 4th, or the section's last) that departs from the section's
+    usual bar on the drums (cymbals and hi-hat aside), from its first differing beat on, into toms or
+    at least 3 snare hits (ghosts aside)."""
+    bars: dict[tuple[str, int, int], dict[Fraction, set]] = {}
+    snares: dict[tuple[str, int, int], list[Fraction]] = {}
+    for ev in compiled.events:
+        if ev.part != part or ev.lane not in DRUMS:
+            continue
+        key = (ev.src["section"], ev.src["instance"], ev.src["bar"])
+        bars.setdefault(key, {}).setdefault(ev.pos_in_bar, set()).add(ev.lane)
+        if ev.lane == "sd" and not ev.arts.get("ghost"):
+            snares.setdefault(key, []).append(ev.pos_in_bar)
+    fills = {}
+    for ins in compiled.instances:
+        n = ins.section.bars
+        own = [bars.get((ins.section.id, ins.index, b), {}) for b in range(1, n + 1)]
+        usual = max(own, key=own.count)
+        for b, hits in enumerate(own, 1):
+            if hits == usual or not (b == n or b % 4 == 0):
+                continue
+            start = min(p for p in hits.keys() | usual.keys() if hits.get(p) != usual.get(p))
+            later = {lane for p, lanes in hits.items() if p >= start for lane in lanes}
+            key = (ins.section.id, ins.index, b)
+            if later & TOMS or sum(p >= start for p in snares.get(key, [])) >= 3:
+                fills[key] = start
+    return fills
+
+
+def _intent_offsets(compiled: Compiled, rush_ms: float, push_ms: float) -> dict[int, float]:
+    """Offsets (ms, negative is early) by id(event): fills rushed toward the barline, builds pushed."""
+    song = compiled.song
+    out: dict[int, float] = {}
+    instances = {(ins.section.id, ins.index): ins for ins in compiled.instances}
+    fills = {pid: find_fills(compiled, pid) for pid, inst in song.instruments.items()
+             if inst.type == "drums" and rush_ms}
+    for ev in compiled.events:
+        inst_type = song.instruments[ev.part].type
+        ins = instances[(ev.src["section"], ev.src["instance"])]
+        ms = 0.0
+        start = fills.get(ev.part, {}).get((ins.section.id, ins.index, ev.src["bar"]))
+        if start is not None and ev.pos_in_bar >= start:
+            ms -= rush_ms * float((ev.pos_in_bar - start) / (song.bar_beats - start))
+        lo, hi = ins.section.dynamics.get(ev.part, (0, 0))
+        if push_ms and inst_type in PUSHING and hi > lo:
+            ms -= push_ms * float((ev.beat - ins.start_beat) / (ins.section.bars * song.bar_beats))
+        if ms:
+            out[id(ev)] = ms
+    return out
 
 
 def _rng(seed: int, name: str) -> np.random.Generator:

@@ -24,8 +24,9 @@ def load(path: Path) -> tuple[Diagnostics, Song | None, Compiled | None]:
 
 
 def score_events(song: Song) -> list[Event]:
-    """Events with score velocities and positions (no humanize, drift, swing, accents, edits or offsets)."""
-    perf, song.performance = song.performance, {"accents": 0, "humanize": {"drift_ms": 0}}
+    """Events with score velocities and positions (no humanize, drift, feel, swing, accents, edits or offsets)."""
+    perf, song.performance = song.performance, {"accents": 0, "humanize": {"drift_ms": 0},
+                                         "feel": {"fill_rush_ms": 0, "build_push_ms": 0}}
     try:
         return compile_song(song, Diagnostics()).events
     finally:
