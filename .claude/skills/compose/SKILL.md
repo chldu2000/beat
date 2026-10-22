@@ -33,11 +33,13 @@ authoritative format reference — read it before writing. `examples/demo.beat.y
    under the rhythm guitars while they play full chords — unless the song means it to.
 6. **Dynamics**: give sections a level with `dynamic`, and let builds grow instead of jumping:
    `dynamic: { from: mp, to: f }` ramps a whole section or part (a pre-chorus into the chorus, drums
-   included); `@<` / `@>` in `notes` swell or fade toward the next dynamic. The beat-by-beat lean
-   (downbeats firmer, off-beats lighter) is automatic.
+   included); `@<` / `@>` in `notes` swell or fade toward the next dynamic. A section's `tempo` can
+   change too (`{ from: 120, to: 100 }` for a closing ritardando). The beat-by-beat lean (downbeats
+   firmer, off-beats lighter) and a slight push in loud sections are automatic.
 7. **Organ**: choose its sound once with `model: { registration: ... }` (SPEC section 3), shape it per
-   section with `dynamic` (it has no touch sensitivity; `!acc` does nothing) and `leslie: fast` where
-   the section should lift (usually choruses and solos).
+   section with `dynamic` (it has no touch sensitivity; `!acc` does nothing, but ramps and hairpins
+   swell even a held chord) and `leslie: fast` where the section should lift (usually choruses and
+   solos); `@fast` / `@slow` in its `notes` switch the Leslie mid-section.
 8. **Mix** (`mix:`, SPEC section 10) last, and only where the defaults don't fit: every part already
    gets EQ, compression and the shared room. Usually set `pan` (spread two rhythm guitars left and
    right, keep bass and drums centered), `gain_db` for balance, `space` for the

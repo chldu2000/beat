@@ -18,9 +18,12 @@ def export_midi(compiled: Compiled, path: str) -> None:
 
     conductor = [(0, mido.MetaMessage("track_name", name=song.meta.get("title") or "beat")),
                  (0, mido.MetaMessage("time_signature", numerator=song.time[0], denominator=song.time[1]))]
-    for ins in compiled.instances:
-        conductor.append((round(float(ins.start_beat) * TPB),
-                          mido.MetaMessage("set_tempo", tempo=mido.bpm2tempo(ins.section.tempo))))
+    # The performed tempo map, one tempo per step of it where it changes (ramps become fine stairs).
+    tempo, last = compiled.tempo, None
+    for i, bpm in enumerate((tempo.start + tempo.end) / 2):
+        if last is None or abs(bpm - last) > 0.01:
+            conductor.append((round(i * tempo.step * TPB), mido.MetaMessage("set_tempo", tempo=mido.bpm2tempo(bpm))))
+            last = bpm
     mid.tracks.append(_to_track(conductor))
 
     channels = iter(c for c in range(16) if c != 9)

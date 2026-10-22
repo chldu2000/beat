@@ -51,7 +51,7 @@ def describe(song: Song) -> str:
         s = song.sections[sid]
         chords = " | ".join(" ".join(c.symbol for c in bar_chords) for bar_chords in s.chords) \
             if s.chords else "(none given)"
-        lines.append(f"- bars {bar}-{bar + s.bars - 1}: {s.tempo:g} BPM, chords {chords}")
+        lines.append(f"- bars {bar}-{bar + s.bars - 1}: {s.tempo:g}{f" -> {s.tempo_end:g}" if s.tempo_end not in (None, s.tempo) else ""} BPM, chords {chords}")
         bar += s.bars
 
     events = score_events(song)

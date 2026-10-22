@@ -72,6 +72,7 @@ class Section:
     chords: list[list[ChordSpan]] | None
     parts: dict[str, list[list[Item]]]
     extends: str | None = None  # the section this one was derived from
+    tempo_end: float | None = None  # where the section's tempo has got to at its end (it ramps if not `tempo`)
     controls: dict[str, dict[str, str]] = field(default_factory=dict)  # part -> settings held for the section
     dynamics: dict[str, tuple[float, float]] = field(default_factory=dict)  # part -> its levels (start, end)
 
@@ -283,14 +284,11 @@ def _load_section(sid: str, raw: dict, song: Song, patterns: dict, diags: Diagno
     if not isinstance(bars, int) or bars <= 0:
         diags.error(where, f"'bars' must be a positive integer, got {bars!r}")
         return None
-    tempo = raw.get("tempo", song.tempo)
-    if not isinstance(tempo, (int, float)) or tempo <= 0:
-        diags.error(f"{where} > tempo", f"tempo must be a positive number, got {tempo!r}")
-        tempo = song.tempo
+    tempo, tempo_end = _tempo(raw.get("tempo", song.tempo), f"{sid} > tempo", diags) or (song.tempo, song.tempo)
     dynamic = _dynamic(raw.get("dynamic", "mf"), f"{sid} > dynamic", diags) or _dynamic("mf", "", diags)
 
-    section = Section(id=sid, bars=bars, tempo=float(tempo), dynamic=dynamic, chords=None, parts={},
-                      extends=raw.get("extends"))
+    section = Section(id=sid, bars=bars, tempo=tempo, dynamic=dynamic, chords=None, parts={},
+                      extends=raw.get("extends"), tempo_end=tempo_end)
     if "chords" in raw:
         section.chords = _parse_chords(raw["chords"], bars, song.bar_beats, f"{sid} > chords", diags)
 
@@ -431,6 +429,24 @@ def _load_part(spec, inst: Instrument, section: Section, song: Song, patterns: d
     return _ramp(bars, dynamic, song.bar_beats)
 
 
+def _tempo(value, where: str, diags: Diagnostics) -> tuple[float, float] | None:
+    """A section's `tempo`: BPM, or a gradual change across it (`{ from: 120, to: 132 }`)."""
+    def bpm(v) -> bool:
+        return isinstance(v, (int, float)) and not isinstance(v, bool) and v > 0
+    if isinstance(value, dict):
+        _warn_unknown(value, {"from", "to"}, where, diags)
+        if not (bpm(value.get("from")) and bpm(value.get("to"))):
+            diags.error(where, f"a tempo change needs 'from' and 'to' in BPM, e.g. {{ from: 120, to: 132 }}, "
+                               f"got {value!r}")
+            return None
+        return float(value["from"]), float(value["to"])
+    if not bpm(value):
+        diags.error(where, f"tempo must be a positive number, or a change like {{ from: 120, to: 132 }}, "
+                           f"got {value!r}")
+        return None
+    return float(value), float(value)
+
+
 def _dynamic(value, where: str, diags: Diagnostics) -> tuple[float, float] | None:
     """A section's or part's `dynamic`: a name (`mf`), or a ramp across it (`{ from: mp, to: f }`)."""
     names = ", ".join(DYNAMICS)
@@ -456,7 +472,9 @@ def _ramp(bars: list[list[Item]], dynamic: tuple[float, float], bar_beats: Fract
     if start == end:
         return bars
     total = float(len(bars) * bar_beats)
-    return [[replace(it, level=it.level + (end - start) * float(bi * bar_beats + it.onset) / total) for it in bar]
+    length = len(bars) * bar_beats
+    return [[replace(it, level=it.level + (end - start) * float(bi * bar_beats + it.onset) / total,
+                     swell=(length - bi * bar_beats - it.onset, it.level + end - start)) for it in bar]
             for bi, bar in enumerate(bars)]
 
 

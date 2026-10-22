@@ -459,24 +459,26 @@ sections:
       dr: { hits: "bd: %s" }
       bs: { notes: "%s" }
 """ % (" | ".join(["1 2 3 4"] * 16), " | ".join(["(E1:4)*4"] * 16))
-    diags, c = build(body)
-    assert not diags.errors
     def offsets(compiled, part):
-        return np.array([(e.time - float(e.beat) * 0.5) * 1000 for e in compiled.events if e.part == part])
+        return np.array([(e.time - compiled.beat_to_sec(float(e.beat))) * 1000
+                         for e in compiled.events if e.part == part])
+    _, default = build(body)
+    assert np.allclose(offsets(default, "dr"), 0) and np.allclose(offsets(default, "bs"), 0)  # off by default
+
+    on = "performance: { humanize: { drift_ms: 8 } }\n"
+    diags, c = build(body + on)
+    assert not diags.errors
     dr, bs = offsets(c, "dr"), offsets(c, "bs")
     assert 1 < dr.std() < 30
     # Slow, not per-note: neighbouring beats are close; bass and kick drift together.
     assert np.abs(np.diff(dr)).mean() < dr.std()
     assert np.std(bs - dr) < dr.std()
 
-    _, off = build(body + "performance: { humanize: { drift_ms: 0 } }\n")
-    assert np.allclose(offsets(off, "dr"), 0) and np.allclose(offsets(off, "bs"), 0)
-
     _, own = build(body + "performance: { humanize: { drift_ms: 0 }, parts: { bs: { humanize: { drift_ms: 5 } } } }\n")
     assert np.allclose(offsets(own, "dr"), 0) and offsets(own, "bs").std() > 1
 
     # Adding a part leaves the others' timing alone.
-    _, more = build(body.replace("bs: {", "gt: { notes: \"E3:1\" }\n      bs: {"))
+    _, more = build(body.replace("bs: {", "gt: { notes: \"E3:1\" }\n      bs: {") + on)
     assert np.allclose(offsets(more, "dr"), dr) and np.allclose(offsets(more, "bs"), bs)
 
 
@@ -507,8 +509,8 @@ sections:
       dr: {{ use: toms }}
 """
     from beat.compile import find_fills
-    off = "performance: { humanize: { drift_ms: 0 } }\n"
-    diags, c = build(body + off, form="[a, b, c]")
+    rushing = "performance: { feel: { fill_rush_ms: 10 } }\n"
+    diags, c = build(body + rushing, form="[a, b, c]")
     assert not diags.errors
     # The fill departs from the groove where the kick on 3 drops out; toms and a snare run follow.
     assert find_fills(c, "dr") == {("a", 1, 4): Fraction(2)}
@@ -527,3 +529,72 @@ sections:
     _, still = build(body + "performance: { humanize: { drift_ms: 0 }, feel: { fill_rush_ms: 0, build_push_ms: 0 } }\n",
                      form="[a, b, c]")
     assert all(abs(e.time - still.beat_to_sec(float(e.beat))) < 1e-9 for e in still.events if e.part != "gt")
+
+
+def test_leslie_switch_mid_section():
+    diags, c = build("""
+sections:
+  a:
+    bars: 2
+    parts:
+      org: { leslie: slow, notes: "[E3 B3]:2 @fast [E3 B3]:2~ | [E3 B3]:1" }
+      bs: { notes: "E1:1 | @fast E1:1" }
+""", form="[a, a]")
+    assert "@fast switches an organ's Leslie; 'bs' is bass" in messages(diags)
+    leslie = [(c.value, round(c.time, 3)) for c in c.controls if c.part == "org"]
+    # Each instance starts slow (the section's setting) and switches on beat 3; the tie survives the marker.
+    assert [v for v, _ in leslie] == ["slow", "fast", "slow", "fast"]
+    assert leslie[1][1] == pytest.approx(c.beat_to_sec(2.0), abs=1e-3)
+    assert sum(e.part == "org" for e in c.events) == 2 * 2 * 2
+
+
+def test_organ_pedal_swells_under_held_chords():
+    from beat.synth.organ import EXPRESSION_DB, EXPRESSION_REF, expression
+    diags, c = build("""
+sections:
+  a:
+    bars: 4
+    dynamic: { from: p, to: f }
+    parts:
+      org: { notes: "[E3 B3]:1~ | [E3 B3]:1~ | [E3 B3]:1~ | [E3 B3]:1" }
+""")
+    assert diags.items == []
+    sr = 1000
+    level = np.log10(expression(c.events, int(c.duration_sec * sr), sr)) * 20 / EXPRESSION_DB + EXPRESSION_REF
+    quarter = len(level) // 4
+    assert level[0] == pytest.approx(0.38, abs=0.01)
+    assert level[-1] == pytest.approx(0.78, abs=0.01)  # one held chord reaches f where the ramp ends
+    assert np.all(np.diff(level[::quarter]) > 0.05)
+
+
+def test_tempo_changes_and_push():
+    body = """
+sections:
+  a:
+    bars: 2
+    tempo: { from: 120, to: 60 }
+    parts:
+      bs: { notes: "E1:1 | E1:1" }
+  loud:
+    bars: 2
+    dynamic: ff
+    parts:
+      bs: { notes: "E1:1 | E1:1" }
+"""
+    still = "performance: { feel: { tempo_push: 0 }, humanize: { drift_ms: 0 } }\n"
+    diags, c = build(body + still, form="[a]")
+    assert diags.items == []
+    # Tempo falling linearly from 120 to 60 over 8 beats takes 8 / (60 / 60) * ln 2 seconds.
+    assert c.duration_sec == pytest.approx(8 * np.log(2) / 1, rel=1e-6)
+    for beat in (0.0, 2.3, 7.9):
+        assert c.sec_to_beat(c.beat_to_sec(beat)) == pytest.approx(beat)
+
+    _, flat = build(body.replace("{ from: 120, to: 60 }", "120") + still, form="[a, loud, a]")
+    _, pushed = build(body.replace("{ from: 120, to: 60 }", "120"), form="[a, loud, a]")
+    assert flat.tempo.bpm(10) == 120
+    assert pushed.tempo.bpm(10) == pytest.approx(121.2)  # the loud section, 1% faster
+    assert pushed.tempo.bpm(2) == 120 and pushed.tempo.bpm(6) > 120  # rises over the bar before it
+    assert pushed.tempo.bpm(17) > 120 and pushed.tempo.bpm(21) == 120  # settles over the bar after
+
+    diags, _ = build(body.replace("{ from: 120, to: 60 }", "{ from: 120 }"), form="[a]")
+    assert "a tempo change needs 'from' and 'to'" in messages(diags)

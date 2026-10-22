@@ -26,17 +26,23 @@ DEFAULT_ACCENTS = {"bass": 0.04, "guitar": 0.04, "piano": 0.05}
 DRUM_ACCENTS = {"hh": 0.10, "ho": 0.05, "rd": 0.08, "rb": 0.06, "bd": 0.04, "sd": 0.03, "ss": 0.03,
                 "t1": 0.03, "t2": 0.03, "t3": 0.03, "hp": 0.03}
 # Timing drift (ms, standard deviation): slow, correlated pushing and dragging instead of per-note
-# jitter. The band drifts together (DRIFT_BAND_MS, a breathing tempo); each player also drifts against
-# the band, least the drummer, who keeps time, and the bass, who locks to the kick.
-DRIFT_BAND_MS = 8.0
+# jitter. Off by default (DRIFT_BAND_MS); `humanize: { drift_ms: 8 }` turns it on. The band drifts
+# together (a breathing tempo); each player also drifts against the band, by DRIFT_PART_MS scaled by
+# the band's setting over DRIFT_REF_MS: least the drummer, who keeps time, and the bass, who locks to
+# the kick.
+DRIFT_BAND_MS = 0.0
+DRIFT_REF_MS = 8.0
 DRIFT_PART_MS = {"drums": 2.0, "bass": 3.0, "guitar": 4.0, "organ": 4.0, "piano": 4.0}
 # Time constants of the drift's components, in beats (about 1, 4 and 16 bars of 4/4): summed, they
 # approximate the 1/f fluctuation of human timing, which listeners prefer to white jitter.
 DRIFT_TAUS = (4, 16, 64)
 HUMANIZE_KEYS = {"timing_ms", "velocity", "drift_ms"}
-# Timing with an intent (ms): drummers rush fills and land the next downbeat on time; in a section
+# Timing with an intent (ms): drummers rush fills and land the next downbeat on time (off by default;
+# `fill_rush_ms: 10` is a typical amount); in a section
 # that builds (its dynamic ramps up) drums and bass lean further ahead until the next section.
-FEEL = {"fill_rush_ms": 10.0, "build_push_ms": 5.0}
+# tempo_push: the louder sections are played up to this much faster than written (0.01 = 1%), as a
+# band without a click does; the tempo rises over the bar before and settles over the bar after.
+FEEL = {"fill_rush_ms": 0.0, "build_push_ms": 5.0, "tempo_push": 0.01}
 PUSHING = {"drums", "bass"}
 TOMS = {"t1", "t2", "t3"}
 DRUMS = {"bd", "sd", "ss"} | TOMS  # fills are told apart on these, not on cymbals or the hi-hat
@@ -73,6 +79,8 @@ class Event:
     dur: float = 0.0  # performed length, seconds
     pos_in_bar: Fraction = Fraction(0)
     chord_rank: int = 0  # index from the lowest note of a chord, for strumming
+    swell: tuple[Fraction, float] | None = None  # (beat, level) a swell under the note is heading for
+    swell_to: tuple[float, float] | None = None  # the same, performed: (seconds, velocity)
 
     def to_dict(self) -> dict:
         return {
@@ -106,16 +114,13 @@ class Compiled:
     total_bars: int
     form: list[str] = field(default_factory=list)
     controls: list[Control] = field(default_factory=list)
+    tempo: "TempoMap | None" = None
 
     def beat_to_sec(self, beat: float) -> float:
-        return beat_to_sec(self.instances, beat)
+        return self.tempo.sec(beat)
 
     def sec_to_beat(self, sec: float) -> float:
-        seg = self.instances[0]
-        for ins in self.instances:
-            if ins.start_sec <= sec:
-                seg = ins
-        return float(seg.start_beat) + (sec - seg.start_sec) * seg.section.tempo / 60
+        return self.tempo.beat(sec)
 
     def to_dict(self) -> dict:
         return {
@@ -128,47 +133,116 @@ class Compiled:
         }
 
 
-def beat_to_sec(instances: list[Instance], beat: float) -> float:
-    seg = instances[0]
-    for ins in instances:
-        if float(ins.start_beat) <= beat:
-            seg = ins
-    return seg.start_sec + (beat - float(seg.start_beat)) * 60 / seg.section.tempo
+class TempoMap:
+    """The performed tempo along the song, in steps of `step` beats: each step's tempo moves linearly
+    from `start[i]` to `end[i]` (BPM), so a written jump between sections stays a jump."""
+
+    def __init__(self, start: np.ndarray, end: np.ndarray, step: float):
+        self.start, self.end, self.step = start, end, step
+        self.at = np.concatenate([[0.0], np.cumsum([self._span(i, step) for i in range(len(start))])])
+
+    def _span(self, i: int, u: float) -> float:
+        """Seconds for the first u beats of step i."""
+        a, b = self.start[i], self.end[i]
+        if abs(b - a) < 1e-9:
+            return 60 * u / a
+        return 60 * self.step / (b - a) * np.log1p((b - a) * u / (self.step * a))
+
+    def sec(self, beat: float) -> float:
+        i = min(max(int(beat // self.step), 0), len(self.start) - 1)
+        return float(self.at[i] + self._span(i, beat - i * self.step))
+
+    def beat(self, sec: float) -> float:
+        i = min(max(int(np.searchsorted(self.at, sec, "right")) - 1, 0), len(self.start) - 1)
+        a, b, r = self.start[i], self.end[i], sec - self.at[i]
+        if abs(b - a) < 1e-9:
+            return i * self.step + r * a / 60
+        return i * self.step + self.step * a / (b - a) * np.expm1(r * (b - a) / (60 * self.step))
+
+    def bpm(self, beat: float) -> float:
+        i = min(max(int(beat // self.step), 0), len(self.start) - 1)
+        return float(self.start[i] + (self.end[i] - self.start[i]) * (beat - i * self.step) / self.step)
 
 
-def build_timeline(song: Song, form: list[str]) -> tuple[list[Instance], Fraction, float, int]:
+def build_timeline(song: Song, form: list[str]) -> tuple[list[Instance], Fraction, TempoMap, int]:
     instances: list[Instance] = []
-    beat, sec, bar = Fraction(0), 0.0, 1
+    beat, bar = Fraction(0), 1
     counts: dict[str, int] = {}
     for sid in form:
         section = song.sections[sid]
         counts[sid] = counts.get(sid, 0) + 1
-        instances.append(Instance(section, counts[sid], beat, sec, bar))
-        length = section.bars * song.bar_beats
-        beat += length
-        sec += float(length) * 60 / section.tempo
+        instances.append(Instance(section, counts[sid], beat, 0.0, bar))
+        beat += section.bars * song.bar_beats
         bar += section.bars
-    return instances, beat, sec, bar - 1
+    tempo = _tempo_map(song, instances, beat)
+    for ins in instances:
+        ins.start_sec = tempo.sec(float(ins.start_beat))
+    return instances, beat, tempo, bar - 1
+
+
+def _tempo_map(song: Song, instances: list[Instance], total: Fraction) -> TempoMap:
+    step = Fraction(1, max(4, song.bar_beats.denominator))
+    n = max(int(total / step), 1)
+    starts, ends = np.zeros(n), np.zeros(n)
+    for ins in instances:
+        sec, length = ins.section, ins.section.bars * song.bar_beats
+        first, count = int(ins.start_beat / step), int(length / step)
+        k = np.arange(count + 1) / count  # step boundaries across the section, 0..1
+        written = sec.tempo + ((sec.tempo_end or sec.tempo) - sec.tempo) * k
+        starts[first:first + count], ends[first:first + count] = written[:-1], written[1:]
+    push = _tempo_push(song, instances, np.arange(n + 1) * float(step))
+    return TempoMap(starts * push[:-1], ends * push[1:], float(step))
+
+
+def _tempo_push(song: Song, instances: list[Instance], x: np.ndarray) -> np.ndarray:
+    """Tempo factors at beats `x`: louder sections faster by up to `feel.tempo_push`, reached over the
+    bar before them and left over the bar after them."""
+    feel = song.performance.get("feel") if isinstance(song.performance, dict) else None
+    push = (feel or {}).get("tempo_push", FEEL["tempo_push"]) if isinstance(feel or {}, dict) else 0
+    if not isinstance(push, (int, float)) or not push:
+        return np.ones(len(x))
+
+    def level(ins: Instance) -> float:
+        drums = [d for p, d in ins.section.dynamics.items() if song.instruments[p].type == "drums"]
+        return float(np.mean(drums or [ins.section.dynamic]))
+    levels = np.array([level(ins) for ins in instances])
+    span = levels.max() - levels.min()
+    factors = 1 + push * ((levels - levels.min()) / span if span > 0 else 0 * levels)
+    starts = np.array([float(ins.start_beat) for ins in instances])
+    out = factors[np.clip(np.searchsorted(starts, x, "right") - 1, 0, None)]
+    bar = float(song.bar_beats)
+    for k in range(1, len(instances)):
+        prev, new, at = factors[k - 1], factors[k], starts[k]
+        lo = at - bar if new > prev else at
+        window = (x >= lo) & (x < lo + bar)
+        out[window] = prev + (new - prev) * (x[window] - lo) / bar
+    return out
 
 
 def compile_song(song: Song, diags: Diagnostics, form: list[str] | None = None) -> Compiled:
     """Compile the song. `form` overrides the song's form (e.g. to render only some sections)."""
     form = form if form is not None else song.form
-    instances, total_beats, duration, total_bars = build_timeline(song, form)
+    instances, total_beats, tempo, total_bars = build_timeline(song, form)
     events: list[Event] = []
-    for pid in song.instruments:
-        events.extend(_part_events(song, pid, instances, diags))
     controls = [Control(pid, ins.start_sec, name, value, {"section": ins.section.id, "instance": ins.index})
                 for ins in instances for pid, settings in ins.section.controls.items()
                 for name, value in settings.items()]
-    compiled = Compiled(song, instances, events, total_beats, duration, total_bars, list(form), controls)
+    for pid in song.instruments:
+        events.extend(_part_events(song, pid, instances, diags, controls))
+    for c in controls:
+        if "at" in c.src:
+            c.time = tempo.sec(float(c.src.pop("at")))
+    controls.sort(key=lambda c: (c.time, c.part))
+    compiled = Compiled(song, instances, events, total_beats, tempo.sec(float(total_beats)), total_bars,
+                        list(form), controls, tempo)
     _apply_performance(compiled, diags)
     compiled.events.sort(key=lambda e: (e.time, e.part, e.pitch))
     check_arrangement(compiled, diags)
     return compiled
 
 
-def _part_events(song: Song, pid: str, instances: list[Instance], diags: Diagnostics) -> list[Event]:
+def _part_events(song: Song, pid: str, instances: list[Instance], diags: Diagnostics,
+                 controls: list[Control]) -> list[Event]:
     events: list[Event] = []
     touch = song.instruments[pid].type not in NO_TOUCH
     pending: dict[int, Event] = {}  # pitch -> event a tie will extend
@@ -190,6 +264,15 @@ def _part_events(song: Song, pid: str, instances: list[Instance], diags: Diagnos
             bar_start = ins.start_beat + bi * song.bar_beats
             for item in items:
                 where = loc(ins.name, pid, f"bar {bi + 1}, beat {fmt_beats(item.onset + 1)}")
+                if "leslie" in item.arts:
+                    if song.instruments[pid].type == "organ":
+                        controls.append(Control(pid, 0.0, "leslie", item.arts["leslie"],
+                                                {"section": ins.section.id, "instance": ins.index, "bar": bi + 1,
+                                                 "beat": float(item.onset + 1), "at": bar_start + item.onset}))
+                    else:
+                        diags.error(where, f"@{item.arts['leslie']} switches an organ's Leslie; "
+                                           f"'{pid}' is {song.instruments[pid].type}")
+                    continue
                 if not item.pitches:
                     if pending:
                         broken_tie("is followed by a rest")
@@ -229,6 +312,9 @@ def _part_events(song: Song, pid: str, instances: list[Instance], diags: Diagnos
                     else:
                         ev = Event(pid, bar_start + item.onset, item.dur, p, item.lane, level,
                                    dict(item.arts), src, pos_in_bar=item.onset, chord_rank=rank)
+                        if item.swell:
+                            # Accents and ghosts shift the whole swell, like the ramp shifts the notes.
+                            ev.swell = (ev.beat + item.swell[0], item.swell[1] + level - item.level)
                         events.append(ev)
                     if item.tie:
                         new_pending[p] = ev
@@ -295,6 +381,7 @@ def _apply_performance(compiled: Compiled, diags: Diagnostics) -> None:
     for k in feel:
         if k not in FEEL:
             diags.warn("performance > feel", f"unknown key '{k}'{did_you_mean(k, FEEL)} (allowed: {', '.join(FEEL)})")
+    _num(feel.get("tempo_push"), FEEL["tempo_push"], "performance > feel > tempo_push", diags)
     rush = _num(feel.get("fill_rush_ms"), FEEL["fill_rush_ms"], "performance > feel > fill_rush_ms", diags)
     push = _num(feel.get("build_push_ms"), FEEL["build_push_ms"], "performance > feel > build_push_ms", diags)
     intent = _intent_offsets(compiled, rush, push)
@@ -312,7 +399,7 @@ def _apply_performance(compiled: Compiled, diags: Diagnostics) -> None:
     for pid, inst in song.instruments.items():
         own = ((parts_cfg.get(pid) or {}).get("humanize") or {}).get("drift_ms")
         # The band's setting scales every player's default too: one knob for a looser or tighter band.
-        default = DRIFT_PART_MS.get(inst.type, 0) * band_ms / DRIFT_BAND_MS
+        default = DRIFT_PART_MS.get(inst.type, 0) * band_ms / DRIFT_REF_MS
         own_ms = _num(own, default, f"performance > parts > {pid} > humanize", diags)
         drifts[pid] = band + drift_curve(_rng(seed, f"drift:{pid}"), n_beats) * own_ms
 
@@ -322,6 +409,7 @@ def _apply_performance(compiled: Compiled, diags: Diagnostics) -> None:
         where = f"performance > parts > {ev.part}"
         lane_cfg = (cfg.get("lanes") or {}).get(ev.lane) or {} if ev.lane else {}
 
+        score_velocity = ev.velocity
         velocity = ev.velocity + _num(cfg.get("velocity"), 0, where, diags) \
             + _num(lane_cfg.get("velocity"), 0, where, diags)
         if inst.type not in NO_TOUCH:
@@ -361,6 +449,9 @@ def _apply_performance(compiled: Compiled, diags: Diagnostics) -> None:
         ev.time = max(0.0, t0 + float(offset_ms) / 1000)
         ev.dur = max(0.005, t1 - t0)
         ev.velocity = float(np.clip(velocity, 0.05, 1.0))
+        if ev.swell:
+            ev.swell_to = (compiled.beat_to_sec(float(ev.swell[0])) + float(offset_ms) / 1000,
+                           float(np.clip(ev.swell[1] + velocity - score_velocity, 0.05, 1.0)))
 
     for ed, hits in zip(edits, edit_hits):
         if hits == 0 and ed["section"] in active_sections:

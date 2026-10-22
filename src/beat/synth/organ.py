@@ -164,14 +164,24 @@ def tonewheels(events: list[Event], reg: Registration, n: int, sr: int, rng: np.
 
 
 def expression(events: list[Event], n: int, sr: int) -> np.ndarray:
-    """Pedal gain: follows the velocity of the latest onset (the loudest note of a chord)."""
-    onsets: dict[int, float] = {}
+    """Pedal gain: follows the velocity of the latest onset (the loudest note of a chord). Under a
+    swell (a hairpin or a ramped dynamic) the pedal moves steadily from one onset's level to the next,
+    so held chords grow or fade; other changes are a quick step."""
+    onsets: dict[int, Event] = {}
     for ev in events:
         i = int(ev.time * sr)
-        onsets[i] = max(onsets.get(i, 0.0), ev.velocity)
+        if i not in onsets or ev.velocity > onsets[i].velocity:
+            onsets[i] = ev
     times = np.array(sorted(onsets))
-    vel = np.array([onsets[i] for i in times])
+    vel = np.array([onsets[i].velocity for i in times])
     step = vel[np.clip(np.searchsorted(times, np.arange(n), "right") - 1, 0, None)]
+    for k, i in enumerate(times):
+        if not onsets[i].swell_to:
+            continue
+        t_end, target = onsets[i].swell_to
+        end = max(int(t_end * sr), i + 1)
+        stop = min(end, times[k + 1] if k + 1 < len(times) else n, n)
+        step[i:stop] = vel[k] + (target - vel[k]) * (np.arange(i, stop) - i) / (end - i)
     a = 1 - np.exp(-1 / (EXPRESSION_S * sr))
     smooth = sosfilt(np.array([[a, 0, 0, 1, a - 1, 0]]), step - step[0]) + step[0]
     return 10 ** (EXPRESSION_DB * (smooth - EXPRESSION_REF) / 20)

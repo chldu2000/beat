@@ -92,7 +92,7 @@ def by_bar(compiled: Compiled, events: list[Event]) -> str:
         chords = ""
         if ins.section.chords:
             chords = "  chords: " + " ".join(c.symbol for c in ins.section.chords[i])
-        lines.append(f"bar {bar} = {ins.name} bar {i + 1}  ({ins.section.tempo:g} BPM){chords}")
+        lines.append(f"bar {bar} = {ins.name} bar {i + 1}  ({_bpm(ins.section)} BPM){chords}")
         for pid in song.instruments:
             part_events = sorted(by_key[bar].get(pid, []), key=lambda e: (e.src["beat"], e.pitch))
             if not part_events:
@@ -112,3 +112,8 @@ def by_bar(compiled: Compiled, events: list[Event]) -> str:
                     items.append(f"{pos}:{notes}/{length}{_arts(group[0].arts)}")
             lines.append(f"  {pid:<5} " + "  ".join(items))
     return "\n".join(lines)
+
+
+def _bpm(section) -> str:
+    end = section.tempo_end or section.tempo
+    return f"{section.tempo:g}" if end == section.tempo else f"{section.tempo:g} -> {end:g}"

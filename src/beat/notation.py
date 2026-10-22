@@ -16,6 +16,7 @@ DYNAMICS = {
     "mf": 0.63, "f": 0.78, "ff": 0.90, "fff": 1.0,
 }
 HAIRPINS = {"<": "crescendo", ">": "diminuendo"}
+LESLIE_SPEEDS = ("slow", "fast")  # `@fast` / `@slow` switch the organ's Leslie from that point
 
 # Articulations that only make sense on fretted string instruments.
 STRING_ARTS = {"pm", "x", "h", "p", "sl", "bend", "release", "vib", "fall", "harm"}
@@ -44,10 +45,12 @@ class Item:
     tie: bool = False
     arts: dict = field(default_factory=dict)
     lane: str | None = None  # drum lane, None for pitched parts
+    # Under a hairpin or a ramped dynamic: (beats from this item's onset to where the change ends, the
+    # level there). The organ's pedal keeps moving toward it while the note is held.
+    swell: tuple[Fraction, float] | None = None
 
     def transposed(self, semitones: int) -> "Item":
-        return Item(self.onset, self.dur, tuple(p + semitones for p in self.pitches),
-                    self.level, self.tie, self.arts, self.lane)
+        return replace(self, pitches=tuple(p + semitones for p in self.pitches))
 
 
 def fmt_beats(x: Fraction) -> str:
@@ -126,6 +129,9 @@ def parse_notes(text: str, bar_beats: Fraction, level: float) -> tuple[list[list
                         problems.append((bi, f"'{tok}' starts before the previous '@{hairpin[1]}' has reached its "
                                              f"dynamic; end that one first, e.g. '@f'"))
                     hairpin = (here, tok[1:], [])
+                elif tok[1:] in LESLIE_SPEEDS:
+                    # A zero-length marker; the compiler turns it into a control (organ parts only).
+                    items.append(Item(t, Fraction(0), (), lvl, arts={"leslie": tok[1:]}))
                 elif tok[1:] in DYNAMICS:
                     target = DYNAMICS[tok[1:]]
                     if hairpin:
@@ -133,7 +139,7 @@ def parse_notes(text: str, bar_beats: Fraction, level: float) -> tuple[list[list
                         hairpin = None
                     lvl = target
                 else:
-                    names = ['@' + d for d in DYNAMICS] + ['@' + h for h in HAIRPINS]
+                    names = ['@' + d for d in DYNAMICS] + ['@' + h for h in HAIRPINS] + ['@' + v for v in LESLIE_SPEEDS]
                     problems.append((bi, f"unknown dynamic '{tok}'{did_you_mean(tok, names)} "
                                         f"(use one of {', '.join(names)})"))
                 continue
@@ -233,7 +239,8 @@ def _end_hairpin(hairpin, end: Fraction, start_lvl: float, target: float, tok: s
         return
     for holder, i, pos in covered:
         frac = (pos - start) / (end - start) if end > start else 1
-        holder[i] = replace(holder[i], level=start_lvl + (target - start_lvl) * float(frac))
+        holder[i] = replace(holder[i], level=start_lvl + (target - start_lvl) * float(frac),
+                            swell=(end - pos, target) if end > pos else None)
 
 
 _POS_RE = re.compile(r"^(\d+(?:\.\d+)?)(?:\+(\d+)/(\d+))?((?:![a-z]+)*)$")
