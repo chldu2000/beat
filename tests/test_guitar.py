@@ -3,7 +3,7 @@ from fractions import Fraction
 import numpy as np
 import pytest
 
-from beat.compile import Event
+from beat.compile import Control, Event
 from beat.song import Instrument
 from beat.synth import amp
 from beat.synth.guitar import GUITAR
@@ -193,3 +193,39 @@ def test_lead_amp_keeps_the_pick_attack_above_the_sustain():
     rms = lambda t0, t1: np.sqrt(np.mean(y[int(t0 * SR):int(t1 * SR)] ** 2))
     assert rms(0.0, 0.012) > 1.25 * rms(0.15, 0.3)  # about 3 dB: the supply sags once the note sustains
     assert rms(0.15, 0.3) > 1.5 * rms(0.7, 0.9)  # and the sustain still decays
+
+
+def distortion(y: np.ndarray, f0: float, t0: float = 0.3, t1: float = 0.8) -> float:
+    """Energy above the fundamental's band relative to the fundamental, on a steady stretch."""
+    seg = y[int(t0 * SR):int(t1 * SR)] * np.hanning(int(t1 * SR) - int(t0 * SR))
+    spec = np.abs(np.fft.rfft(seg)) ** 2
+    f = np.fft.rfftfreq(len(seg), 1 / SR)
+    fund = spec[(f > 0.9 * f0) & (f < 1.1 * f0)].sum()
+    return spec[f > 1.5 * f0].sum() / fund
+
+
+def test_rig_without_switches_is_the_plain_amp():
+    x = strings([ev(52, d=1.0)], 1.5)
+    rig = amp.guitar_rig(x, SR, "crunch", (), {}, [Control("gt", 0.0, "tone", "crunch", {})])
+    assert np.array_equal(rig, amp.amp(x, SR, "crunch"))
+
+
+def test_pedals_drive_the_amp_harder():
+    x = 0.1 * np.sin(2 * np.pi * 220 * np.arange(SR) / SR)  # a pure tone: every harmonic comes from clipping
+    thd = lambda tone, on, model={}: distortion(amp.guitar_rig(x, SR, tone, on, model), 220)
+    assert thd("clean", ()) < thd("clean", ("od",)) < thd("clean", ("od",), {"od": {"drive": 1.0}})
+    assert thd("clean", ("od",)) < thd("clean", ("fuzz",))
+    assert thd("crunch", ()) < thd("crunch", ("boost",))
+
+
+def test_tone_switch_crossfades_into_the_new_setting():
+    x = strings([ev(52, d=2.0)], 2.0)
+    controls = [Control("gt", 0.0, "tone", "clean", {}), Control("gt", 1.0, "pedals", "od", {})]
+    y = amp.guitar_rig(x, SR, "clean", (), {}, controls)
+    before, after = amp.guitar_rig(x, SR, "clean", (), {}), amp.guitar_rig(x, SR, "clean", ("od",), {})
+    s = SR  # the switch
+    assert np.allclose(y[:s - SR // 100], before[:s - SR // 100])
+    settle = s + SR // 20
+    assert np.max(np.abs(y[settle:] - after[settle:])) < 0.02 * np.max(np.abs(after[settle:]))
+    jump = np.max(np.abs(np.diff(y[s - SR // 50:s + SR // 50])))
+    assert jump < 2 * max(np.max(np.abs(np.diff(before))), np.max(np.abs(np.diff(after))))

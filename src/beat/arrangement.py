@@ -17,9 +17,11 @@ STATIC_MIN_BARS = 16
 
 
 def lead_part(compiled, events=None) -> str | None:
-    """The part carrying the melody: a guitar with the lead tone, else the highest mostly single-note part."""
+    """The part carrying the melody: a guitar with the lead tone (or switched to it somewhere), else the highest
+    mostly single-note part."""
     insts = compiled.song.instruments
-    leads = [p for p, i in insts.items() if i.tone == "lead"]
+    switched = {c.part for c in compiled.controls if c.name == "tone" and c.value == "lead"}
+    leads = [p for p, i in insts.items() if i.tone == "lead" or p in switched]
     if leads:
         return leads[0]
     events = compiled.events if events is None else events

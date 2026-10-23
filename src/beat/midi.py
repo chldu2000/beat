@@ -33,6 +33,10 @@ def export_midi(compiled: Compiled, path: str) -> None:
         if inst.type != "drums":
             program = GUITAR_PROGRAMS[inst.tone] if inst.type == "guitar" else PROGRAMS[inst.type]
             msgs.append((0, mido.Message("program_change", channel=channel, program=program)))
+            for c in compiled.controls:  # a guitar switching its amp tone changes program
+                if c.part == pid and c.name == "tone" and GUITAR_PROGRAMS[c.value] != program:
+                    program = GUITAR_PROGRAMS[c.value]
+                    msgs.append((tick(c.time), mido.Message("program_change", channel=channel, program=program)))
         for ev in compiled.events:
             if ev.part != pid:
                 continue

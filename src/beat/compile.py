@@ -11,6 +11,7 @@ from .diagnostics import Diagnostics, did_you_mean, loc
 from .notation import fmt_beats
 from .pitch import parse_pitch, pitch_name
 from .song import Section, Song
+from .synth import rig
 
 ACCENT = 0.12
 GHOST = 0.35
@@ -19,6 +20,9 @@ DEFAULT_STRUM_MS = {"guitar": 8.0}
 # {"at": beats into the note, <art>: value}.
 LATE_ARTS = ("vib", "bend", "release", "fall")
 NO_TOUCH = {"organ"}  # keyboards whose loudness does not follow the key stroke: accents are ignored
+# Markers in `notes` that switch a setting from that point: the part type they apply to, and what they switch.
+SWITCH_OWNERS = {"leslie": "organ", "tone": "guitar", "pedal": "guitar"}
+SWITCH_WHAT = {"leslie": "an organ's Leslie", "tone": "a guitar's amp tone", "pedal": "a guitar pedal"}
 # How much louder the downbeat is played and how much softer the finest subdivisions (velocity, 0-1;
 # scaled by metric_weight). Players lean on the beat and lighten the off-beats; the hi-hat's down/up
 # stroke alternation is the strongest case. Crashes and the organ (no touch) skip it.
@@ -92,7 +96,8 @@ class Event:
 
 @dataclass
 class Control:
-    """A setting that a part holds from `time` on, e.g. the organ's Leslie speed for a section."""
+    """A setting that a part holds from `time` on: the organ's Leslie speed, a guitar's `tone` or the
+    `pedals` it has on (e.g. "od+boost", or "none")."""
     part: str
     time: float
     name: str
@@ -254,24 +259,37 @@ def _part_events(song: Song, pid: str, instances: list[Instance], diags: Diagnos
         diags.error(pending_where, f"tie from {names} {why}")
         pending = {}
 
+    itype = song.instruments[pid].type
     for ins in instances:
         bars = ins.section.parts.get(pid)
         if bars is None:
             if pending:
                 broken_tie(f"but '{pid}' does not play in {ins.name}")
             continue
+        pedals = set(rig.split(ins.section.controls.get(pid, {}).get("pedals", rig.NONE)))
         for bi, items in enumerate(bars):
             bar_start = ins.start_beat + bi * song.bar_beats
             for item in items:
                 where = loc(ins.name, pid, f"bar {bi + 1}, beat {fmt_beats(item.onset + 1)}")
-                if "leslie" in item.arts:
-                    if song.instruments[pid].type == "organ":
-                        controls.append(Control(pid, 0.0, "leslie", item.arts["leslie"],
-                                                {"section": ins.section.id, "instance": ins.index, "bar": bi + 1,
-                                                 "beat": float(item.onset + 1), "at": bar_start + item.onset}))
-                    else:
-                        diags.error(where, f"@{item.arts['leslie']} switches an organ's Leslie; "
-                                           f"'{pid}' is {song.instruments[pid].type}")
+                switch = next((k for k in SWITCH_OWNERS if k in item.arts), None)
+                if switch:
+                    value = item.arts[switch]
+                    if itype != SWITCH_OWNERS[switch]:
+                        diags.error(where, f"@{value} switches {SWITCH_WHAT[switch]}; '{pid}' is {itype}")
+                        continue
+                    name = switch
+                    if switch == "pedal":
+                        pedal, on = value[1:], value[0] == "+"
+                        if (pedal in pedals) == on:
+                            diags.warn(where, f"@{value} has no effect: {pedal} is already {'on' if on else 'off'} "
+                                              f"here (each section starts with its own or the instrument's "
+                                              f"pedals); drop it")
+                            continue
+                        pedals = pedals | {pedal} if on else pedals - {pedal}
+                        name, value = "pedals", rig.fmt(pedals)
+                    controls.append(Control(pid, 0.0, name, value,
+                                            {"section": ins.section.id, "instance": ins.index, "bar": bi + 1,
+                                             "beat": float(item.onset + 1), "at": bar_start + item.onset}))
                     continue
                 if not item.pitches:
                     if pending:

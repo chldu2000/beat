@@ -10,6 +10,7 @@ from fractions import Fraction
 
 from .diagnostics import did_you_mean
 from .pitch import parse_pitch
+from .synth.rig import PEDALS, TONES
 
 DYNAMICS = {
     "ppp": 0.15, "pp": 0.25, "p": 0.38, "mp": 0.50,
@@ -17,6 +18,8 @@ DYNAMICS = {
 }
 HAIRPINS = {"<": "crescendo", ">": "diminuendo"}
 LESLIE_SPEEDS = ("slow", "fast")  # `@fast` / `@slow` switch the organ's Leslie from that point
+# `@lead` switches a guitar's amp tone, `@+od` / `@-od` turn a pedal on / off, from that point.
+SWITCHES = {**{t: ("tone", t) for t in TONES}, **{s + p: ("pedal", s + p) for p in PEDALS for s in "+-"}}
 
 # Articulations that only make sense on fretted string instruments.
 STRING_ARTS = {"pm", "x", "h", "p", "sl", "bend", "release", "vib", "fall", "harm"}
@@ -129,17 +132,22 @@ def parse_notes(text: str, bar_beats: Fraction, level: float) -> tuple[list[list
                         problems.append((bi, f"'{tok}' starts before the previous '@{hairpin[1]}' has reached its "
                                              f"dynamic; end that one first, e.g. '@f'"))
                     hairpin = (here, tok[1:], [])
-                elif tok[1:] in LESLIE_SPEEDS:
-                    # A zero-length marker; the compiler turns it into a control (organ parts only).
-                    items.append(Item(t, Fraction(0), (), lvl, arts={"leslie": tok[1:]}))
+                elif tok[1:] in LESLIE_SPEEDS or tok[1:] in SWITCHES:
+                    # A zero-length marker; the compiler turns it into a control (organ or guitar parts only).
+                    name, value = SWITCHES.get(tok[1:], ("leslie", tok[1:]))
+                    items.append(Item(t, Fraction(0), (), lvl, arts={name: value}))
                 elif tok[1:] in DYNAMICS:
                     target = DYNAMICS[tok[1:]]
                     if hairpin:
                         _end_hairpin(hairpin, here, lvl, target, tok, bi, problems)
                         hairpin = None
                     lvl = target
+                elif tok[1:2] in ("+", "-"):
+                    problems.append((bi, f"unknown pedal in '{tok}'{did_you_mean(tok[2:], PEDALS)}; the pedals are "
+                                        f"{', '.join(PEDALS)}, e.g. '@+od' turns the overdrive on, '@-od' off"))
                 else:
                     names = ['@' + d for d in DYNAMICS] + ['@' + h for h in HAIRPINS] + ['@' + v for v in LESLIE_SPEEDS]
+                    names += ['@' + v for v in SWITCHES]
                     problems.append((bi, f"unknown dynamic '{tok}'{did_you_mean(tok, names)} "
                                         f"(use one of {', '.join(names)})"))
                 continue

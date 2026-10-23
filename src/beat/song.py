@@ -10,17 +10,18 @@ from . import mix as mixing
 from .diagnostics import Diagnostics, did_you_mean, loc
 from .notation import DYNAMICS, Item, fmt_beats, parse_grid, parse_hits, parse_notes
 from .pitch import parse_chord, parse_pitch
-from .synth import registration
+from .synth import registration, rig
 from .synth.engine import ENGINES
 
 SPEC_VERSION = "0.1"
 
 TOP_KEYS = {"beat", "meta", "instruments", "patterns", "sections", "form", "performance", "mix"}
 META_KEYS = {"title", "tempo", "time", "key", "style"}
-INSTRUMENT_KEYS = {"type", "tuning", "frets", "tone", "model"}
+INSTRUMENT_KEYS = {"type", "tuning", "frets", "tone", "pedals", "model"}
 PATTERN_KEYS = {"type", "bars", "notes", "grid", "hits", "steps"}
 SECTION_KEYS = {"bars", "tempo", "dynamic", "chords", "parts", "extends"}
-PART_KEYS = {"notes", "grid", "hits", "use", "steps", "transpose", "replace", "add", "dynamic", "leslie"}
+PART_KEYS = {"notes", "grid", "hits", "use", "steps", "transpose", "replace", "add", "dynamic", "leslie", "tone",
+             "pedals"}
 REPLACE_KEYS = {"notes", "grid", "hits", "use", "steps", "transpose"}
 ADD_KEYS = {"grid", "hits", "use", "steps"}
 
@@ -28,7 +29,6 @@ INSTRUMENT_TYPES = {"drums", "bass", "guitar", "organ", "piano"}
 DEFAULT_TUNING = {"guitar": ["E2", "A2", "D3", "G3", "B3", "E4"], "bass": ["E1", "A1", "D2", "G2"]}
 DEFAULT_FRETS = {"guitar": 22, "bass": 21}
 FIXED_RANGE = {"organ": (36, 96), "piano": (21, 108)}
-TONES = {"clean", "crunch", "lead"}
 
 _ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
@@ -40,6 +40,7 @@ class Instrument:
     tuning: tuple[int, ...] = ()
     frets: int = 0
     tone: str | None = None
+    pedals: tuple[str, ...] = ()  # pedals on unless a section or the notes switch them
     model: dict = field(default_factory=dict)
 
     @property
@@ -221,6 +222,8 @@ def _load_instruments(raw, diags: Diagnostics) -> dict[str, Instrument]:
                                                      f"{', '.join(ENGINES[itype])}{did_you_mean(engine, ENGINES[itype])}")
         if itype == "organ":
             _check_organ_model(inst.model, where, diags)
+        elif itype == "guitar":
+            _check_guitar_model(inst.model, where, diags)
         if itype in DEFAULT_TUNING:
             try:
                 inst.tuning = tuple(parse_pitch(str(n)) for n in spec.get("tuning", DEFAULT_TUNING[itype]))
@@ -233,11 +236,12 @@ def _load_instruments(raw, diags: Diagnostics) -> dict[str, Instrument]:
                 frets = DEFAULT_FRETS[itype]
             inst.frets = frets
         if itype == "guitar":
-            inst.tone = spec.get("tone", "crunch")
-            if inst.tone not in TONES:
-                diags.error(f"{where} > tone", f"tone must be one of {', '.join(sorted(TONES))}"
-                                               f"{did_you_mean(inst.tone, TONES)}")
-                inst.tone = "crunch"
+            inst.tone = _tone(spec, "crunch", f"{where} > tone", diags)
+            inst.pedals = _pedals(spec, (), f"{where} > pedals", diags)
+        else:
+            for key in ("tone", "pedals"):
+                if key in spec:
+                    diags.error(f"{where} > {key}", f"'{key}' only applies to guitars, not {itype}")
         out[pid] = inst
     return out
 
@@ -249,6 +253,35 @@ def _check_organ_model(model, where: str, diags: Diagnostics) -> None:
     _warn_unknown(model, registration.MODEL_KEYS, f"{where} > model", diags)
     for key, msg in registration.parse(model)[1]:
         diags.error(f"{where} > model > {key}", msg)
+
+
+def _check_guitar_model(model, where: str, diags: Diagnostics) -> None:
+    if not isinstance(model, dict):
+        diags.error(f"{where} > model", "model must be a mapping, e.g. { od: { drive: 0.7 } }")
+        return
+    _warn_unknown(model, rig.MODEL_KEYS, f"{where} > model", diags)
+    for key, msg in rig.knobs(model)[1]:
+        diags.error(f"{where} > model > {key}", msg)
+
+
+def _tone(spec, default: str, where: str, diags: Diagnostics) -> str:
+    """A guitar's amp tone, from an instrument or a section's part."""
+    value = spec.get("tone", default) if isinstance(spec, dict) else default
+    if value not in rig.TONES:
+        diags.error(where, f"tone must be one of {', '.join(rig.TONES)}, got {value!r}"
+                           f"{did_you_mean(value, rig.TONES)}")
+        return default
+    return value
+
+
+def _pedals(spec, default: tuple[str, ...], where: str, diags: Diagnostics) -> tuple[str, ...]:
+    """The pedals a guitar has on, from an instrument or a section's part."""
+    if not isinstance(spec, dict) or "pedals" not in spec:
+        return default
+    on, problem = rig.parse_pedals(spec["pedals"])
+    if problem:
+        diags.error(where, problem)
+    return on
 
 
 def _resolve_extends(raw, diags: Diagnostics) -> dict[str, dict]:
@@ -301,12 +334,17 @@ def _load_section(sid: str, raw: dict, song: Song, patterns: dict, diags: Diagno
             diags.error(f"{sid} > {pid}", f"unknown part '{pid}'{did_you_mean(pid, song.instruments)} "
                                           f"(declare it under instruments)")
             continue
-        section.parts[pid] = _load_part(spec, song.instruments[pid], section, song, patterns, diags)
-        if song.instruments[pid].type == "organ":
+        inst = song.instruments[pid]
+        section.parts[pid] = _load_part(spec, inst, section, song, patterns, diags)
+        if inst.type == "organ":
             section.controls[pid] = {"leslie": _leslie(spec, f"{sid} > {pid} > leslie", diags)}
-        elif isinstance(spec, dict) and "leslie" in spec:
-            diags.error(f"{sid} > {pid} > leslie",
-                        f"'leslie' only applies to organ parts, not {song.instruments[pid].type}")
+        elif inst.type == "guitar":
+            # The instrument's tone and pedals unless the part sets them; not carried over from the last section.
+            section.controls[pid] = {"tone": _tone(spec, inst.tone, f"{sid} > {pid} > tone", diags),
+                                     "pedals": rig.fmt(_pedals(spec, inst.pedals, f"{sid} > {pid} > pedals", diags))}
+        for key, owner in (("leslie", "organ"), ("tone", "guitar"), ("pedals", "guitar")):
+            if isinstance(spec, dict) and key in spec and inst.type != owner:
+                diags.error(f"{sid} > {pid} > {key}", f"'{key}' only applies to {owner} parts, not {inst.type}")
     return section
 
 

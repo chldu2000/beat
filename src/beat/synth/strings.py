@@ -85,6 +85,8 @@ def bass_chain(x: np.ndarray, sr: int) -> np.ndarray:
     return sosfilt(butter(2, 3000, "lp", fs=sr, output="sos"), y)
 
 
-def render_part(inst: Instrument, events: list[Event], n: int, sr: int, rng: np.random.Generator) -> np.ndarray:
+def render_part(inst: Instrument, events: list[Event], n: int, sr: int, rng: np.random.Generator,
+                controls=()) -> np.ndarray:
+    """The instrument's own tone throughout: this placeholder has no pedals and ignores tone switches."""
     out = mix_notes(events, n, sr, lambda ev: render_note(ev, inst, sr, rng))
     return amp(out, sr, inst.tone) if inst.type == "guitar" else bass_chain(out, sr)

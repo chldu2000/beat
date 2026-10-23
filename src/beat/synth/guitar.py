@@ -1,4 +1,5 @@
-"""Electric guitar: plucked-string model with a bridge pickup, played with a pick, into a tube amp and cabinet."""
+"""Electric guitar: plucked-string model with a bridge pickup, played with a pick, into pedals, a tube amp and
+a cabinet."""
 
 import numpy as np
 
@@ -15,5 +16,7 @@ GUITAR = StringModel(
 )
 
 
-def render_part(inst: Instrument, events: list[Event], n: int, sr: int, rng: np.random.Generator) -> np.ndarray:
-    return amp.amp(strings_signal(GUITAR, inst, events, n, sr, rng), sr, inst.tone or "crunch")
+def render_part(inst: Instrument, events: list[Event], n: int, sr: int, rng: np.random.Generator,
+                controls=()) -> np.ndarray:
+    x = strings_signal(GUITAR, inst, events, n, sr, rng)
+    return amp.guitar_rig(x, sr, inst.tone or "crunch", inst.pedals, inst.model, controls)

@@ -350,6 +350,67 @@ form: [a]
     assert "unknown key 'percusion'" in messages(diags, "warning")
 
 
+def test_guitar_tone_and_pedal_switches():
+    diags = Diagnostics()
+    guitar = "gt: { type: guitar, tone: clean, pedals: [od], model: { od: { drive: 0.8 } } }"
+    song = load_song(HEADER.replace("gt: { type: guitar }", guitar) + """
+sections:
+  a:
+    bars: 2
+    parts:
+      gt: { notes: "E2:1 | @lead E2:2 @-od @+boost E2:2" }
+  b:
+    bars: 1
+    parts:
+      gt: { tone: crunch, pedals: [boost, fuzz], notes: "@+boost E2:1" }
+form: [a, b, a]
+""", diags)
+    c = compile_song(song, diags)
+    assert messages(diags) == ""
+    assert "b#1 > gt > bar 1, beat 1: @+boost has no effect: boost is already on" in messages(diags, "warning")
+    assert [(round(x.time, 3), x.name, x.value) for x in c.controls if x.time < 6.5] == [
+        (0.0, "tone", "clean"), (0.0, "pedals", "od"),  # the instrument's defaults
+        (2.0, "tone", "lead"), (3.0, "pedals", "none"), (3.0, "pedals", "boost"),
+        (4.0, "tone", "crunch"), (4.0, "pedals", "fuzz+boost"),  # signal order, not the written order
+        (6.0, "tone", "clean"), (6.0, "pedals", "od")]  # each section starts afresh
+    assert c.controls[3].src == {"section": "a", "instance": 1, "bar": 2, "beat": 3.0}
+
+
+def test_guitar_rig_errors():
+    diags = Diagnostics()
+    guitar = "gt: { type: guitar, tone: metal, pedals: [od, delay], model: { od: { drive: 2, gain: 1 }, fuz: {} } }"
+    load_song(HEADER.replace("gt: { type: guitar }", guitar).replace("bs: { type: bass }", "bs: { type: bass, tone: clean }")
+              + """
+sections:
+  a:
+    bars: 1
+    parts:
+      gt: { pedals: od, notes: "@+wah E2:1" }
+      bs: { pedals: [od], notes: "E1:1" }
+form: [a]
+""", diags)
+    errors = messages(diags)
+    assert "instruments > gt > tone: tone must be one of clean, crunch, lead, got 'metal'" in errors
+    assert "instruments > gt > pedals: unknown pedal 'delay'" in errors
+    assert "model > od > drive: drive must be a number from 0 to 1, got 2" in errors
+    assert "model > od > gain: od has no knob 'gain'" in errors
+    assert "unknown key 'fuz'" in messages(diags, "warning")
+    assert "instruments > bs > tone: 'tone' only applies to guitars, not bass" in errors
+    assert "a > bs > pedals: 'pedals' only applies to guitar parts, not bass" in errors
+    assert "unknown pedal in '@+wah'" in errors
+    diags, _ = build("""
+sections:
+  a:
+    bars: 1
+    parts:
+      bs: { notes: "@lead E1:1" }
+      org: { notes: "@+od C4:1" }
+""")
+    errors = messages(diags)
+    assert "a#1 > bs > bar 1, beat 1: @lead switches a guitar's amp tone; 'bs' is bass" in errors
+    assert "a#1 > org > bar 1, beat 1: @+od switches a guitar pedal; 'org' is organ" in errors
+
+
 def test_string_articulation_checks():
     diags, c = build("""
 sections:
