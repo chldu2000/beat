@@ -10,9 +10,10 @@ meta:
 instruments:
   dr:   { type: drums }
   bs:   { type: bass }
-  gtl:  { type: guitar, tone: crunch }   # rhythm, left
-  gtr:  { type: guitar, tone: crunch }   # rhythm, right
-  lead: { type: guitar, tone: lead }
+  # The rhythm guitars kick an overdrive on (low drive, high level: it pushes the amp) from the pre-chorus.
+  gtl:  { type: guitar, tone: crunch, model: { od: { drive: 0.2, level: 0.8 } } }   # rhythm, left
+  gtr:  { type: guitar, tone: crunch, model: { od: { drive: 0.2, level: 0.8 } } }   # rhythm, right
+  lead: { type: guitar, tone: lead, model: { boost: { level: 0.4 } } }   # boost for the solo
   org:  { type: organ, model: { registration: rock } }
 
 patterns:
@@ -80,7 +81,11 @@ sections:
     bars: 4
     chords: "A5 | G5 D5 | A5 | G5 D5"
     parts:
-      gtl: { use: riff }
+      gtl:   # the riff alone on a clean amp, into crunch as the band comes in
+        tone: clean
+        use: riff
+        replace:
+          3-4: { notes: "@crunch A2:8!pm A2:8!pm [A2 E3 A3]:4 A2:8!pm A2:8!pm G2:8 A2:8 | [G2 D3 G3]:4 [G2 D3 G3]:8 [D3 A3 D4]:8~ [D3 A3 D4]:2" }
       gtr:
         use: riff
         replace: { 1-2: { notes: "r:1 | r:1" } }
@@ -135,8 +140,8 @@ sections:
     dynamic: f
     chords: "D | F | G | E"
     parts:
-      gtl: { notes: "([D3 A3 D4]:8)*8 | ([F2 C3 F3]:8)*8 | ([G2 D3 G3]:8)*8 | [E2 B2 E3 G#3 B3 E4]:1" }
-      gtr: { notes: "([D3 A3 D4]:8)*8 | ([F2 C3 F3]:8)*8 | ([G2 D3 G3]:8)*8 | [E2 B2 E3 G#3 B3 E4]:1" }
+      gtl: { pedals: [od], notes: "([D3 A3 D4]:8)*8 | ([F2 C3 F3]:8)*8 | ([G2 D3 G3]:8)*8 | [E2 B2 E3 G#3 B3 E4]:1" }
+      gtr: { pedals: [od], notes: "([D3 A3 D4]:8)*8 | ([F2 C3 F3]:8)*8 | ([G2 D3 G3]:8)*8 | [E2 B2 E3 G#3 B3 E4]:1" }
       bs: { notes: "(D2:8)*8 | (F1:8)*8 | (G1:8)*8 | E1:1" }
       org:
         notes: "[A3 D4 F#4]:1 | [A3 C4 F4]:1 | [B3 D4 G4]:1 | [G#3 B3 E4]:1"
@@ -150,6 +155,7 @@ sections:
     chords: "A | E | F#m | D | A | E | D | E"
     parts:
       gtl:
+        pedals: [od]
         notes: >-
           [A2 E3 A3 C#4 E4]:4. [A2 E3 A3 C#4 E4]:8~ [A2 E3 A3 C#4 E4]:4 [A2 E3 A3 C#4 E4]:8 [A2 E3 A3 C#4 E4]:8 |
           [E2 B2 E3 G#3 B3 E4]:4. [E2 B2 E3 G#3 B3 E4]:8~ [E2 B2 E3 G#3 B3 E4]:4 [E2 B2 E3 G#3 B3 E4]:8 [E2 B2 E3 G#3 B3 E4]:8 |
@@ -160,6 +166,7 @@ sections:
           [D3 A3 D4 F#4]:4. [D3 A3 D4 F#4]:8~ [D3 A3 D4 F#4]:4 [D3 A3 D4 F#4]:8 [D3 A3 D4 F#4]:8 |
           [E2 B2 E3 G#3 B3 E4]:2 [E2 B2 E3 G#3 B3 E4]:4 [E2 B2 E3 G#3 B3 E4]:4!acc
       gtr:
+        pedals: [od]
         notes: >-
           ([A2 E3 A3]:8)*8 | ([E2 B2 E3]:8)*8 | ([F#2 C#3 F#3]:8)*8 | ([D3 A3 D4]:8)*8 |
           ([A2 E3 A3]:8)*8 | ([E2 B2 E3]:8)*8 | ([D3 A3 D4]:8)*8 | ([E2 B2 E3]:8)*6 [E2 B2 E3]:4!acc
@@ -206,6 +213,7 @@ sections:
           5-8: { use: bass_verse_end }
           13-16: { notes: "(F1:8)*8 | (G1:8)*8 | (A1:8)*8 | E1:1" }
       lead:
+        pedals: [boost]
         notes: >-
           r:8 A4:8 C5:8 D5:8 E5:4 D5:8!p C5:8!p | D5:4. C5:8 A4:4 G4:4 |
           A4:8 C5:8 A4:8 C5:8 D5:8 D#5:8 E5:4 | G5:4 E5:8 D5:8 E5:2!vib |
